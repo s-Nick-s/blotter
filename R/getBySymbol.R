@@ -25,7 +25,7 @@
         p.ccy.str<-attr(Portfolio,'currency')
         namePosPL = paste("posPL", p.ccy.str, sep=".")
     } else {
-        print("Returning position values in native currency values")
+        # SPEEDUP print("Returning position values in native currency values")
         namePosPL = "posPL"
         # Alternatively, we could just use posPL without ccy extension
     }
@@ -37,17 +37,25 @@
     else
         symbols = Symbols
     
-    getAttrCol <- function(x, namePosPL, Dates, Attribute) {
-        x[[namePosPL]][Dates, Attribute, drop = FALSE]
+    for (symbol in symbols) {
+        tmp_col = Portfolio$symbols[[symbol]][[namePosPL]][Dates,Attribute,drop=FALSE]
+        if(is.null(table)) table = tmp_col
+        else table = merge(table, tmp_col)
     }
-    table <- lapply(mget(symbols, Portfolio$symbols),
-                    getAttrCol, namePosPL, Dates, Attribute)
-    table <- do.call(merge, table)
-    
     if(length(table) > 0) colnames(table) = symbols
     class(table)<-class(xts())
+### TODO: NA fill like getByPortfolio	- Values are forward filled. Other columns are filled with nulls. IS THAT CORRECT ?
+	if(Attribute == "Pos.Value" )
+	{
+	# complicated, as this requires knowing previous position value ! 	
+	# for now do the incorrect thing - zerofill first row, forward fill all next rows.... 
+		table[1,] = zerofill(table[1,]);
+		if(NROW(table) > 1) 
+            table = na.locf(table)
+	} else { # all PnL-related columns
+		table = zerofill(table)
+	}
     return(table)
-### TODO: NA fill like getByPortfolio
 
 ## TODO: append summary information in last columns based on Attribute requested
 # e.g., 'Pos.Value' would append Net.Value, Gross.Value, Long.Value, Short.Value

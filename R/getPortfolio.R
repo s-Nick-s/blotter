@@ -44,16 +44,15 @@ getPortfolio <- function(Portfolio, Dates=NULL, envir=.blotter)
 #' @rdname getPortfolio
 .getPortfolio <- function(Portfolio, envir=.blotter) 
 { # @author Brian Peterson
-    pname<-Portfolio
-    if(!grepl("portfolio\\.",pname)) Portfolio<-suppressWarnings(try(get(paste("portfolio",pname,sep='.'),envir=envir),silent=TRUE))
-    else Portfolio<-suppressWarnings(try(get(pname,envir=envir),silent=TRUE))
-    if(inherits(Portfolio,"try-error"))
-        stop("Portfolio ", pname, " not found, use initPortf() to create a new portfolio")
+# SPEEDUP - always assume we need to append 'portfolio.' to pname
+    pname<-paste("portfolio",Portfolio,sep='.');
+	# SPEEDUP - remove try
+    Portfolio<-get(pname,envir=envir);
+	# SPEEDUP - dont test if above eval resulted in an error
     if(!inherits(Portfolio,"portfolio"))
         stop("Portfolio ", pname, " passed is not the name of a portfolio object.")  
     return(Portfolio)
 }
-
 
 #' generic is.function for portfolio, will take either a string or an object
 #' 
@@ -88,6 +87,6 @@ is.portfolio <- function(x,...)
 # This library is distributed under the terms of the GNU Public License (GPL)
 # for full details see the file COPYING
 #
-# $Id$
+# $Id: getPortfolio.R 1666 2015-01-07 13:26:09Z braverock $
 #
 ###############################################################################

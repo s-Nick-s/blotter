@@ -16,7 +16,7 @@
 calcPortfWgt <- function(Portfolio, 
                          Symbols = NULL, 
                          Dates = NULL, 
-                         denominator = c('Gross.Value', 'Net.Value', 'Long.Value', 'Short.Value'), 
+                         denominator = c('Net.Value'), 
                          Account)
 { # @author Peter Carl, Brian Peterson
 
@@ -48,6 +48,6 @@ calcPortfWgt <- function(Portfolio,
 # This library is distributed under the terms of the GNU Public License (GPL)
 # for full details see the file COPYING
 #
-# $Id$
+# $Id: calcPortfWgt.R 1666 2015-01-07 13:26:09Z braverock $
 #
 ###############################################################################

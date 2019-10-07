@@ -22,55 +22,55 @@ updatePortf <- function(Portfolio, Symbols=NULL, Dates=NULL, Prices=NULL, Interv
 { #' @author Peter Carl, Brian Peterson
      pname<-Portfolio
      Portfolio<-.getPortfolio(pname) # TODO add Date handling
-     
+     if(length(grep('virtual',pname))>0) { is.virtual = TRUE # virtual portfolios will not be updated in .USD, and summary will be built from posPL
+	 } else { is.virtual = FALSE };
      # FUNCTION
      if(is.null(Symbols)){
        Symbols = ls(Portfolio$symbols)
      }
      for(symbol in Symbols){
-       tmp_instr<-try(getInstrument(symbol), silent=TRUE)
-       .updatePosPL(Portfolio=pname, Symbol=as.character(symbol), Dates=Dates, Prices=Prices, Interval=Interval, ...=...)
+       # tmp_instr<-try(getInstrument(symbol), silent=TRUE) - WHY IS IT THERE ?
+       .updatePosPL(Portfolio=pname, Symbol=as.character(symbol), Dates=Dates, Prices=Prices, Interval=Interval, virtual = is.virtual,  ...=...)
      }
      
      # Calculate and store portfolio summary table
      Portfolio<-.getPortfolio(pname) # refresh with an updated object
-     if(is.null(Dates)) Dates <- unique(do.call(c,c(lapply(Portfolio$symbols, function(x) index(x[["posPL"]])), use.names=FALSE, recursive=FALSE)))
-     
+     if(is.null(Dates)) 
+	 {
+		Dates <- unique(do.call(c,c(lapply(Portfolio$symbols, function(x) index(x[["posPL"]])), use.names=FALSE, recursive=FALSE)))
+     } else {
+		if(class(Dates)=="character")
+		{ # try ISO-parsing Dates, compare first of Dates to LAST of portfolio dates
+			parsed.Dates <-.parseISO8601(Dates);
+			if(!is.na(parsed.Dates$first.time))
+			{
+				available.Dates<-unique(do.call(c,c(lapply(Portfolio$symbols, function(x) index(x[["posPL"]])), use.names=FALSE, recursive=FALSE)));
+				if(max(available.Dates)<parsed.Dates$first.time)
+					return(pname); # we should not continue building summary for this portfolio. it will be null
+			}
+		}
+	 }
      #Symbols = ls(Portfolio$symbols)
-     Attributes = c('Long.Value', 'Short.Value', 'Net.Value', 'Gross.Value', 'Period.Realized.PL', 'Period.Unrealized.PL', 'Gross.Trading.PL', 'Txn.Fees', 'Net.Trading.PL')
+     Attributes = c('Net.Value',  'Period.Realized.PL', 'Period.Unrealized.PL', 'Gross.Trading.PL', 'Txn.Fees', 'Net.Trading.PL')
      summary = NULL
      tmp.attr=NULL
      for(attribute in Attributes) {
        result=NULL
        switch(attribute,
-              Net.Value =,
-              Gross.Value =,
-              Long.Value =,
-              Short.Value =,{
+              Net.Value =,{
                 # all these use Pos.Value
                 if(is.null(tmp.attr)){
-                  table = .getBySymbol(Portfolio = Portfolio, Attribute = "Pos.Value", Dates = Dates, Symbols = Symbols)
+                  table = .getBySymbol(Portfolio = Portfolio, Attribute = "Pos.Value", Dates = Dates, Symbols = Symbols, native = is.virtual)
                   tmp.attr="Pos.Value"
                 }
-                switch(attribute,
-                       Gross.Value = {  result = xts(rowSums(abs(table), na.rm=TRUE), order.by=index(table))},
-                       Long.Value  = { tmat = table
-                                       tmat[tmat < 0] <- 0
-                                       result = xts(rowSums(tmat, na.rm=TRUE), order.by=index(table))
-                       },
-                       Short.Value = { tmat = table
-                                       tmat[tmat > 0] <- 0
-                                       result = xts(rowSums(tmat, na.rm=TRUE), order.by=index(table))
-                       },
-                       Net.Value   = {	result = xts(rowSums(table, na.rm=TRUE), order.by=index(table))	}
-                )
+                result = xts(rowSums(table, na.rm=TRUE), order.by=index(table))	
               },
               Period.Realized.PL =,
               Period.Unrealized.PL =,
               Gross.Trading.PL =,
               Txn.Fees =,
               Net.Trading.PL = {
-                table = .getBySymbol(Portfolio = Portfolio, Attribute = attribute, Dates = Dates, Symbols = Symbols)
+                table = .getBySymbol(Portfolio = Portfolio, Attribute = attribute, Dates = Dates, Symbols = Symbols, native = is.virtual)
                 tmp.attr = NULL
                 result = xts(rowSums(table, na.rm=TRUE), order.by=index(table))
               }
@@ -89,7 +89,7 @@ updatePortf <- function(Portfolio, Symbols=NULL, Dates=NULL, Prices=NULL, Interv
        summary.dups <- summary[d,]
        ds <- duplicated(.index(summary.dups)) & !duplicated(.index(summary.dups), fromLast=TRUE)
        # get the last value
-       cLast <- c('Long.Value', 'Short.Value', 'Net.Value', 'Gross.Value')
+       cLast <- c('Net.Value')
        lastCols <- summary.dups[which(ds),cLast]
        # sum values
        cSums <- c('Period.Realized.PL', 'Period.Unrealized.PL', 'Gross.Trading.PL', 'Txn.Fees', 'Net.Trading.PL')
@@ -107,12 +107,14 @@ updatePortf <- function(Portfolio, Symbols=NULL, Dates=NULL, Prices=NULL, Interv
      # if(!is.timeBased(Dates)) Dates = xts:::time.xts(Portfolio$symbols[[1]][["posPL"]][Dates])
      #xts(,do.call(unlist,c(lapply(symbols,index),use.names=FALSE)))
      if(!is.timeBased(Dates)) Dates <- unique(do.call(c,c(lapply(Portfolio$symbols, function(x) index(x[["posPL"]][Dates]) ), use.names=FALSE, recursive=FALSE)))
-     startDate = first(Dates)-.00001
+     startDate = min(Dates)-.001
+	 # logerror(paste('updating portfolio: ',pname,'\nDates = ',capture.output(Dates),'\nstartDate = ',startDate,'\ntrimmed Portfolio.summary:\n',
+		#capture.output(Portfolio$summary[paste('::',format(as.POSIXct(startDate, origin = default.origin)),sep='')]),'\nnew summary:\n',capture.output(summary),'\n',sep=""))
      # trim summary slot to not double count, related to bug 831 on R-Forge, and rbind new summary
      if( as.POSIXct(attr(Portfolio,'initDate'))>=startDate || length(Portfolio$summary)==0 ){
        Portfolio$summary<-summary #changes to subset might not return a empty dimnames set of columns
      }else{
-       Portfolio$summary<-rbind(Portfolio$summary[paste('::',startDate,sep='')],summary)
+       Portfolio$summary<-rbind(window(Portfolio$summary, end = startDate),summary)
      }
 
      #portfolio is already an environment, it's been updated in place
@@ -129,6 +131,6 @@ updatePortf <- function(Portfolio, Symbols=NULL, Dates=NULL, Prices=NULL, Interv
 # This library is distributed under the terms of the GNU Public License (GPL)
 # for full details see the file COPYING
 #
-# $Id$
+# $Id: updatePortf.R 1666 2015-01-07 13:26:09Z braverock $
 #
 ###############################################################################

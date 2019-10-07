@@ -186,7 +186,7 @@
 #'p$summary
 #'}
 #'
-#'@import FinancialInstrument PerformanceAnalytics quantmod xts zoo TTR
+#'@import FinancialInstrument PerformanceAnalytics quantmod xts zoo
 #'@importFrom graphics abline grid plot points
 #'@importFrom grDevices dev.new
 #'@importFrom methods hasArg

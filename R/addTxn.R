@@ -68,19 +68,19 @@
 #' @author Peter Carl, Brian G. Peterson
 #' @export addTxn
 #' @export addTxns
-addTxn <- function(Portfolio, Symbol, TxnDate, TxnQty, TxnPrice, ..., TxnFees=0, allowRebates=FALSE, ConMult=NULL, verbose=TRUE, eps=1e-06)
+addTxn <- function(Portfolio, Symbol, TxnId, TxnDate, TxnQty, TxnPrice, ..., TxnFees=0, allowRebates=FALSE, ConMult=NULL, verbose=TRUE, eps=1e-06)
 { 
     pname <- Portfolio
     #If there is no table for the symbol then create a new one
-    if(is.null(.getPortfolio(pname)$symbols[[Symbol]]))
-        addPortfInstr(Portfolio=pname, symbols=Symbol)
+    # SPEEDUP if(is.null(.getPortfolio(pname)$symbols[[Symbol]]))
+    # SPEEDUP   addPortfInstr(Portfolio=pname, symbols=Symbol)
     Portfolio <- .getPortfolio(pname)
 
     PrevPosQty = getPosQty(pname, Symbol, TxnDate)
     
     if(!inherits(TxnDate, "POSIXct")) {
       if(inherits(TxnDate, "Date"))
-        TxnDate <- as.POSIXct(TxnDate, tz="UTC")
+        TxnDate <- as.POSIXct(TxnDate, tz=default.timeZone)
       else
         TxnDate <- as.POSIXct(TxnDate)
     }
@@ -110,9 +110,14 @@ addTxn <- function(Portfolio, Symbol, TxnDate, TxnQty, TxnPrice, ..., TxnFees=0,
     
     # split transactions that would cross through zero
     if(PrevPosQty!=0 && sign(PrevPosQty+TxnQty)!=sign(PrevPosQty) && PrevPosQty!=-TxnQty){
-        txnFeeQty=txnfees/abs(TxnQty) # calculate fees pro-rata by quantity
-        addTxn(Portfolio=pname, Symbol=Symbol, TxnDate=TxnDate, TxnQty=-PrevPosQty, TxnPrice=TxnPrice, ..., 
+		deltaID = findLastDigit(abs(TxnId))
+		TxnId1 = sign(TxnId)*( abs(TxnId) + deltaID )
+		TxnId = sign(TxnId)*( abs(TxnId) + 2*deltaID ) 
+		# if split, TxnId 111 becomes 111.1 and 111.2; TxnId -111.1 becomes -111.11 and -111.12
+        txnFeeQty=TxnFees/abs(TxnQty) # calculate fees pro-rata by quantity
+        addTxn(Portfolio=pname, Symbol=Symbol, TxnId = TxnId1, TxnDate=TxnDate, TxnQty=-PrevPosQty, TxnPrice=TxnPrice, ..., 
                 TxnFees = txnFeeQty*abs(PrevPosQty), ConMult = ConMult, verbose = verbose, eps=eps)
+
         TxnDate=TxnDate+2*eps #transactions need unique timestamps, so increment a bit
         TxnQty=TxnQty+PrevPosQty
         PrevPosQty=0
@@ -154,7 +159,7 @@ addTxn <- function(Portfolio, Symbol, TxnDate, TxnQty, TxnPrice, ..., TxnFees=0,
 	  NetTxnRealizedPL = GrossTxnRealizedPL + txnfees
 
     # Store the transaction and calculations
-    NewTxn = xts(t(c(TxnQty, TxnPrice, TxnValue, TxnAvgCost, PosQty, PosAvgCost, GrossTxnRealizedPL, txnfees, NetTxnRealizedPL, ConMult)), order.by=TxnDate)
+    NewTxn = xts(t(c(TxnId, TxnQty, TxnPrice, TxnValue, TxnAvgCost, PosQty, PosAvgCost, GrossTxnRealizedPL, txnfees, NetTxnRealizedPL, ConMult)), order.by=TxnDate)
     #colnames(NewTxns) = c('Txn.Qty', 'Txn.Price', 'Txn.Value', 'Txn.Avg.Cost', 'Pos.Qty', 'Pos.Avg.Cost', 'Gross.Txn.Realized.PL', 'Txn.Fees', 'Net.Txn.Realized.PL', 'Con.Mult')
     Portfolio$symbols[[Symbol]]$txn<-rbind(Portfolio$symbols[[Symbol]]$txn, NewTxn)
 
@@ -207,13 +212,14 @@ addTxns<- function(Portfolio, Symbol, TxnData , verbose=FALSE, ..., ConMult=NULL
 
     # initialize new transaction object
     NewTxns <- xts(matrix(NA_real_, nrow(TxnData), 10L), index(TxnData))
-    colnames(NewTxns) <- c('Txn.Qty', 'Txn.Price', 'Txn.Value', 'Txn.Avg.Cost', 'Pos.Qty', 'Pos.Avg.Cost', 'Gross.Txn.Realized.PL', 'Txn.Fees', 'Net.Txn.Realized.PL', 'Con.Mult')
+    colnames(NewTxns) <- c('Txn.Id', 'Txn.Qty', 'Txn.Price', 'Txn.Value', 'Txn.Avg.Cost', 'Pos.Qty', 'Pos.Avg.Cost', 'Gross.Txn.Realized.PL', 'Txn.Fees', 'Net.Txn.Realized.PL', 'Con.Mult')
 
     # Warn if the transaction timestamp is not after initDate
     if(.index(NewTxns[1L,1L]) <= .index(Portfolio$symbols[[Symbol]]$txn[1L,1L]))
       warning("First transaction timestamp (", index(NewTxns[1L,1L]), ") ",
               "is not after initDate (", index(Portfolio$symbols[[Symbol]]$txn[1L,1L]), ").")
 
+	NewTxns$Txn.Id <- as.numeric(TxnData$TxnId)
     if(!("TxnQty" %in% colnames(TxnData))) {
 	warning(paste("No TxnQty column found, what did you call it?"))
     } else {
@@ -301,7 +307,7 @@ addTxns<- function(Portfolio, Symbol, TxnData , verbose=FALSE, ..., ConMult=NULL
 #' 
 #' # TODO add AsOfDate 
 #' 
-addDiv <- function(Portfolio, Symbol, TxnDate, DivPerShare, ..., TxnFees=0, ConMult=NULL, verbose=TRUE)
+addDiv <- function(Portfolio, Symbol, TxnId, TxnDate, DivPerShare, ..., TxnFees=0, ConMult=NULL, verbose=TRUE)
 { # @author Peter Carl
     pname <- Portfolio
     #If there is no table for the symbol then create a new one
@@ -344,7 +350,7 @@ addDiv <- function(Portfolio, Symbol, TxnDate, DivPerShare, ..., TxnFees=0, ConM
     NetTxnRealizedPL = GrossTxnRealizedPL + TxnFees
 
     # Store the transaction and calculations
-    NewTxn = xts(t(c(TxnQty, TxnPrice, TxnValue, TxnAvgCost, PosQty, PosAvgCost, GrossTxnRealizedPL, TxnFees, NetTxnRealizedPL, ConMult)), order.by=as.POSIXct(TxnDate))
+    NewTxn = xts(t(c(TxnId, TxnQty, TxnPrice, TxnValue, TxnAvgCost, PosQty, PosAvgCost, GrossTxnRealizedPL, TxnFees, NetTxnRealizedPL, ConMult)), order.by=as.POSIXct(TxnDate))
     #colnames(NewTxns) = c('Txn.Qty', 'Txn.Price', 'Txn.Value', 'Txn.Avg.Cost', 'Pos.Qty', 'Pos.Avg.Cost', 'Gross.Txn.Realized.PL', 'Txn.Fees', 'Net.Txn.Realized.PL', 'Con.Mult')
     Portfolio$symbols[[Symbol]]$txn<-rbind(Portfolio$symbols[[Symbol]]$txn, NewTxn)
 

@@ -61,7 +61,11 @@
 initPortf <- function(name="default", symbols, initPosQty = 0, initDate = '1950-01-01', currency='USD', ...)
 { # @author Peter Carl
   if(exists(paste("portfolio",name,sep='.'), envir=.blotter,inherits=TRUE))
-    stop("Portfolio ", name, " already exists, use updatePortf() or addPortfInstr() to update it.")
+  {
+	warning(paste("Portfolio ", name, " already exists, re-initializing it"), call.=FALSE);
+	rm(list=c(paste("portfolio",name,sep='.')), envir=.blotter,inherits=TRUE);
+  }
+  #  stop("Portfolio ", name, " already exists, use updatePortf() or addPortfInstr() to update it.")
   
   # FUNCTION
   
@@ -103,6 +107,6 @@ initPortf <- function(name="default", symbols, initPosQty = 0, initDate = '1950-
 # This library is distributed under the terms of the GNU Public License (GPL)
 # for full details see the file COPYING
 #
-# $Id$
+# $Id: initPortf.R 1666 2015-01-07 13:26:09Z braverock $
 #
 ###############################################################################
