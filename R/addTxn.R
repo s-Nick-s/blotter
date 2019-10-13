@@ -70,25 +70,30 @@
 #' @export addTxns
 addTxn <- function(Portfolio, Symbol, TxnId, TxnDate, TxnQty, TxnPrice, ..., TxnFees=0, allowRebates=FALSE, ConMult=NULL, verbose=TRUE, eps=1e-06)
 { 
+    result <- c()
     pname <- Portfolio
     #If there is no table for the symbol then create a new one
     # SPEEDUP if(is.null(.getPortfolio(pname)$symbols[[Symbol]]))
     # SPEEDUP   addPortfInstr(Portfolio=pname, symbols=Symbol)
     Portfolio <- .getPortfolio(pname)
-
+	
     PrevPosQty = getPosQty(pname, Symbol, TxnDate)
     
-    if(!inherits(TxnDate, "POSIXct")) {
-      if(inherits(TxnDate, "Date"))
-        TxnDate <- as.POSIXct(TxnDate, tz=default.timeZone)
-      else
-        TxnDate <- as.POSIXct(TxnDate)
+    if(!is.timeBased(TxnDate) ){
+        TxnDate<-as.POSIXct(TxnDate,origin=default.origin, tz=default.timeZone)
     }
 
     lastTxnDate <- end(Portfolio$symbols[[Symbol]]$txn)
     if (TxnDate < lastTxnDate) {
       stop("Transactions must be added in order. TxnDate (", TxnDate, ") is ",
            "before last transaction in portfolio (", lastTxnDate, ") for ", Symbol)
+    } else {
+        if(TxnDate == lastTxnDate)
+        {
+          warning("Transaction timestamp (", TxnDate, ") ",
+              "equals last timestamp (", lastTxnDate , ").");
+          TxnDate = lastTxnDate + eps;
+        }    
     }
 
     # Coerce the transaction fees to a function if a string was supplied
@@ -115,8 +120,9 @@ addTxn <- function(Portfolio, Symbol, TxnId, TxnDate, TxnQty, TxnPrice, ..., Txn
 		TxnId = sign(TxnId)*( abs(TxnId) + 2*deltaID ) 
 		# if split, TxnId 111 becomes 111.1 and 111.2; TxnId -111.1 becomes -111.11 and -111.12
         txnFeeQty=TxnFees/abs(TxnQty) # calculate fees pro-rata by quantity
+	result <- c(result, 
         addTxn(Portfolio=pname, Symbol=Symbol, TxnId = TxnId1, TxnDate=TxnDate, TxnQty=-PrevPosQty, TxnPrice=TxnPrice, ..., 
-                TxnFees = txnFeeQty*abs(PrevPosQty), ConMult = ConMult, verbose = verbose, eps=eps)
+                TxnFees = txnFeeQty*abs(PrevPosQty), ConMult = ConMult, verbose = verbose, eps=eps))
 
         TxnDate=TxnDate+2*eps #transactions need unique timestamps, so increment a bit
         TxnQty=TxnQty+PrevPosQty
@@ -125,15 +131,9 @@ addTxn <- function(Portfolio, Symbol, TxnId, TxnDate, TxnQty, TxnPrice, ..., Txn
     }
     
     if(is.null(ConMult) | !hasArg(ConMult)){
-        tmp_instr<-try(getInstrument(Symbol), silent=TRUE)
-        if(inherits(tmp_instr,"try-error") | !is.instrument(tmp_instr)){
-            warning(paste("Instrument",Symbol," not found, using contract multiplier of 1"))
-            ConMult<-1
-        } else {
-            ConMult<-tmp_instr$multiplier
-        }
+        tmp_instr<-getInstrument(Symbol)
+        ConMult<-tmp_instr$multiplier
     }
-
     # Calculate the value and average cost of the transaction
     TxnValue = .calcTxnValue(TxnQty, TxnPrice, 0, ConMult) # Gross of Fees
     TxnAvgCost = .calcTxnAvgCost(TxnValue, TxnQty, ConMult)
@@ -169,8 +169,11 @@ addTxn <- function(Portfolio, Symbol, TxnId, TxnDate, TxnQty, TxnPrice, ..., Txn
               "is not after initDate (", index(Portfolio$symbols[[Symbol]]$txn[1L,1L]), ").")
 
     if(verbose)
+            result <- append(result, list(list(TxnDate = TxnDate, 
+                TxnId = TxnId, Symbol = Symbol, TxnQty = TxnQty, 
+            TxnPrice = TxnPrice)))
       # print(paste(TxnDate, Symbol, TxnQty, "@",TxnPrice, sep=" "))
-      print(paste(format(TxnDate, "%Y-%m-%d %H:%M:%S"), Symbol, TxnQty, "@",TxnPrice, sep=" "))
+      # print(paste(format(TxnDate, "%Y-%m-%d %H:%M:%S"), Symbol, TxnQty, "@",TxnPrice, sep=" "))
       #print(Portfolio$symbols[[Symbol]]$txn)
 }
 
