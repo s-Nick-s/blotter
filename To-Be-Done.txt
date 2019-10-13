@@ -1,0 +1,5 @@
+1) how can we mark long positions to Bid, and short positions to Ask ?
+
+We KNOW that our portfolios are strictly split into Long / Short (we have to check carefully if that is alway true or not)
+
+Therefore theoretically we can select the correct side of the quote just based on the name of the portfolio
