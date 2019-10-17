@@ -36,9 +36,7 @@
 
     # if no date is specified, get all available dates
     if(is.null(Dates)) {
-		loginfo(paste('null dates 0'));
         Dates = sort(c(index(prices),index(Portfolio$symbols[[Symbol]]$txn)));
-		loginfo(paste('null dates 1',Dates,sep="|"))
         attr(Dates, "class")<-c("POSIXct","POSIXt");
 
         # Covert to POSIXct w/same TZ as portfolio object
@@ -47,7 +45,6 @@
             Dates <- as.POSIXct(as.character(as.Date(Dates)), tz=portfTZ)
         }
     } else if(!is.timeBased(Dates)) {
-	    loginfo(paste('non-time dates',Dates,sep="|"))
         # Parse ISO8601 dates and check for NA and bounds
         parsedDates <- .parseISO8601(Dates)
         t1 <- parsedDates$first.time
@@ -64,12 +61,8 @@
                     "ends of the range were outside the available prices: ",
                     priceRange, ". Using ", dateRangeStr," instead.")
         }
-		loginfo(paste('date range',dateRange,start(price),end(prices),="|"))
-		logdebug(capture.output(head(prices)))
-		logdebug(capture.output(tail(prices)))
         # Date subset
         Dates <- index(prices[dateRange])
-		loginfo(paste('Dates 3',Dates,sep="|"))
     }
     if(!missing(Interval) && !is.null(Interval)) {
         ep_args <- .parse_interval(Interval)
