@@ -115,7 +115,7 @@ addTxn <- function(Portfolio, Symbol, TxnId, TxnDate, TxnQty, TxnPrice, ..., Txn
     
     # split transactions that would cross through zero
     if(PrevPosQty!=0 && sign(PrevPosQty+TxnQty)!=sign(PrevPosQty) && PrevPosQty!=-TxnQty){
-		logwarn(paste('addTxn: ', Portfolio, Symbol, TxnId, formatC(PrevPosQty,format="e",digits=12), formatC(TxnQty,format="e",digits=12)))
+		logwarn(paste('addTxn: ',  Symbol, TxnId, formatC(PrevPosQty,format="e",digits=12), formatC(TxnQty,format="e",digits=12)))
 		my_comparator = all.equal(PrevPosQty,-TxnQty)
 		if(!is.logical(my_comparator)){logwarn(paste('addTxn: trully different', my_comparator ))}
 		deltaID = findLastDigit(abs(TxnId))
