@@ -113,24 +113,33 @@ addTxn <- function(Portfolio, Symbol, TxnId, TxnDate, TxnQty, TxnPrice, ..., Txn
     if(txnfees>0 && !isTRUE(allowRebates))
         stop('Positive Transaction Fees should only be used in the case of broker/exchange rebates for TxnFees ',TxnFees,'. See Documentation.')
     
+    # no other way - if PrevPosQty ~= -TxnQty (within Tolerance), assign TxnQty = -PrevPosQty
+    my_comparator0 = all.equal(PrevPosQty,-TxnQty)
+    if(is.logical(my_comparator0)){
+		TxnQty = -PrevPosQty
+    }
+	
     # split transactions that would cross through zero
     if(PrevPosQty!=0 && sign(PrevPosQty+TxnQty)!=sign(PrevPosQty) && PrevPosQty!=-TxnQty){
-		logwarn(paste('addTxn: ',  Symbol, TxnId, formatC(PrevPosQty,format="e",digits=12), formatC(TxnQty,format="e",digits=12)))
-		my_comparator = all.equal(PrevPosQty,-TxnQty)
-		if(!is.logical(my_comparator)){logwarn(paste('addTxn: trully different', my_comparator ))}
+	debug_msg = paste('addTxn: ',  Symbol, TxnId, formatC(PrevPosQty,format="e",digits=12), formatC(TxnQty,format="e",digits=12))
+	logdebug(debug_msg)
+	my_comparator = all.equal(PrevPosQty,-TxnQty)
+	if(!is.logical(my_comparator)){
+		logwarn(paste('addTxn: trully different', debug_msg, my_comparator))
 		deltaID = findLastDigit(abs(TxnId))
 		TxnId1 = sign(TxnId)*( abs(TxnId) + deltaID )
 		TxnId = sign(TxnId)*( abs(TxnId) + 2*deltaID ) 
 		# if split, TxnId 111 becomes 111.1 and 111.2; TxnId -111.1 becomes -111.11 and -111.12
-        txnFeeQty=TxnFees/abs(TxnQty) # calculate fees pro-rata by quantity
-	result <- c(result, 
-        addTxn(Portfolio=pname, Symbol=Symbol, TxnId = TxnId1, TxnDate=TxnDate, TxnQty=-PrevPosQty, TxnPrice=TxnPrice, ..., 
-                TxnFees = txnFeeQty*abs(PrevPosQty), ConMult = ConMult, verbose = verbose, eps=eps))
+		txnFeeQty=TxnFees/abs(TxnQty) # calculate fees pro-rata by quantity
+		result <- c(result, 
+		addTxn(Portfolio=pname, Symbol=Symbol, TxnId = TxnId1, TxnDate=TxnDate, TxnQty=-PrevPosQty, TxnPrice=TxnPrice, ..., 
+				TxnFees = txnFeeQty*abs(PrevPosQty), ConMult = ConMult, verbose = verbose, eps=eps))
 
-        TxnDate=TxnDate+2*eps #transactions need unique timestamps, so increment a bit
-        TxnQty=TxnQty+PrevPosQty
-        PrevPosQty=0
-        txnfees=txnFeeQty*abs(TxnQty+PrevPosQty)
+		TxnDate=TxnDate+2*eps #transactions need unique timestamps, so increment a bit
+		TxnQty=TxnQty+PrevPosQty
+		PrevPosQty=0
+		txnfees=txnFeeQty*abs(TxnQty+PrevPosQty)
+	}
     }
     
     if(is.null(ConMult) | !hasArg(ConMult)){
