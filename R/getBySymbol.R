@@ -38,12 +38,13 @@
         symbols = Symbols
     
     for (symbol in symbols) {
-        tmp_col = Portfolio$symbols[[symbol]][[namePosPL]][Dates,Attribute,drop=FALSE]
+        tmp_col = Portfolio$symbols[[symbol]][[namePosPL]][,Attribute,drop=FALSE]
         if(is.null(table)) table = tmp_col
         else table = merge(table, tmp_col)
     }
     if(length(table) > 0) colnames(table) = symbols
     class(table)<-class(xts())
+    table = table[Dates]
 ### TODO: NA fill like getByPortfolio	- Values are forward filled. Other columns are filled with nulls. IS THAT CORRECT ?
 	if(Attribute == "Pos.Value" )
 	{

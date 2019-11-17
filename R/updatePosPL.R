@@ -38,7 +38,6 @@
     if(is.null(Dates)) {
         Dates = sort(c(index(prices),index(Portfolio$symbols[[Symbol]]$txn)));
         attr(Dates, "class")<-c("POSIXct","POSIXt");
-
         # Covert to POSIXct w/same TZ as portfolio object
         if(any(tclass(prices) %in% c("Date","yearmon","yearqtr"))) {
             portfTZ <- tzone(Portfolio$symbols[[Symbol]]$txn)
@@ -63,13 +62,15 @@
         }
         # Date subset
         Dates <- index(prices[dateRange])
+       if(length(Dates)<1)
+	   return(NULL)
     }
     if(!missing(Interval) && !is.null(Interval)) {
         ep_args <- .parse_interval(Interval)
         prices <- prices[endpoints(prices, on=ep_args$on, k=ep_args$k)]
     }
     
-    if(ncol(prices)>1) prices=getPrice(Prices,Symbol)
+    if(ncol(prices)>1) prices=getPrice(Prices,Symbol) #  THIS DOESNT APPLY - WE'VE SELECT ONLY 1 COLUMN in line 32
     
 	# line up Prices dates with Dates set/index/span passed in.
 	startDate = first(Dates) # 20191007 - this has 0 offset in my code. In standard code offset is 0.00001 - WHY ?
@@ -80,7 +81,7 @@
 	
 	#subset Prices by dateRange too...
 	Prices<-prices[dateRange]
-    
+
   if(nrow(Prices)<1) {
       Prices=xts(cbind(Prices=as.numeric(last(prices[paste('::',endDate,sep='')]))),as.Date(endDate))
       warning('no Prices available for ',Symbol,' in ',dateRange,' : using last available price and marking to ', endDate)
