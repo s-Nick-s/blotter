@@ -133,7 +133,7 @@ addTxn <- function(Portfolio, Symbol, TxnId, TxnDate, TxnQty, TxnPrice, ..., Txn
 		txnFeeQty=TxnFees/abs(TxnQty) # calculate fees pro-rata by quantity
 		result <- c(result, 
 		addTxn(Portfolio=pname, Symbol=Symbol, TxnId = TxnId1, TxnDate=TxnDate, TxnQty=-PrevPosQty, TxnPrice=TxnPrice, ..., 
-				TxnFees = txnFeeQty*abs(PrevPosQty), ConMult = ConMult, verbose = verbose, eps=eps))
+				TxnFees = txnFeeQty*abs(PrevPosQty), ConMult = ConMult, verbose = verbose, eps=eps, allowRebates=allowRebates))
 
 		TxnDate=TxnDate+2*eps #transactions need unique timestamps, so increment a bit
 		TxnQty=TxnQty+PrevPosQty
