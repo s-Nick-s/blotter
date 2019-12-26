@@ -279,10 +279,39 @@
 			if (length(CcyMult)==1 && CcyMult==1){
 			  Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]] <- Portfolio[['symbols']][[Symbol]][['posPL']]
 			} else {
+			  TmpPeriods <- merge(TmpPeriods, Prices)
+			  pricesLagged <- lag(TmpPeriods$Prices, 1)
+			  orderIds <- setdiff(unique(abs(Txns$Txn.Id)), 0)
+			  
+			  #cumsum PnL in USD
+			  oCumsumList <- lapply(orderIds, function(oid) {
+			    targetTxn <- Txns[Txns$Txn.Id == oid, ]
+			    
+			    oRange <- which(index(TmpPeriods) %in% index(Txns)[abs(Txns$Txn.Id) == oid])
+			    if(length(oRange) == 1) {
+			      oRange <- oRange[1]:nrow(TmpPeriods)
+			    } else {
+			      oRange <- oRange[1]:oRange[2]
+			    }
+			    
+			    oPrices <- pricesLagged[oRange]
+			    oPrices[1] <- targetTxn$Txn.Price
+			    
+			    oIncrement <- targetTxn$Txn.Qty[[1]] * (TmpPeriods$Prices[oRange] - oPrices)
+			    cumsum(oIncrement) * CcyMult
+			  })
+			  oCumsumListMerged<- Reduce(merge, oCumsumList)
+			  totalCumsum <- xts(rowSums(na.locf(oCumsumListMerged), na.rm = T), index(oCumsumListMerged))
+			  
 			  #multiply the correct columns 
-			  columns<-c('Pos.Value', 'Txn.Value', 'Pos.Avg.Cost', 'Period.Realized.PL', 'Period.Unrealized.PL','Gross.Trading.PL', 'Txn.Fees', 'Net.Trading.PL')
+			  columns<-c('Pos.Value', 'Txn.Value', 'Pos.Avg.Cost', 'Period.Realized.PL', 'Period.Unrealized.PL','Gross.Trading.PL', 'Txn.Fees')
 			  TmpPeriods[,columns] <- TmpPeriods[,columns] * drop(CcyMult)  # drop dims so recycling will occur
 			  TmpPeriods[,'Ccy.Mult'] <- CcyMult
+			  #TmpPeriods$Net.Trading.PL.Cumsum <- totalCumsum
+			  TmpPeriods$Net.Trading.PL <- NULL
+			  TmpPeriods$Prices <- NULL
+			  TmpPeriods$Net.Trading.PL <- totalCumsum - lag(totalCumsum, 1)
+			  TmpPeriods[is.na(TmpPeriods[,'Net.Trading.PL']),'Net.Trading.PL']  <- 0
 			  
 				  # this seems redundant in currency-pair portfolios
 			  #add change in Pos.Value in base currency
