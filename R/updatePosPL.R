@@ -279,39 +279,35 @@
 			if (length(CcyMult)==1 && CcyMult==1){
 			  Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]] <- Portfolio[['symbols']][[Symbol]][['posPL']]
 			} else {
-			  TmpPeriods <- merge(TmpPeriods, Prices)
-			  pricesLagged <- lag(TmpPeriods$Prices, 1)
-			  orderIds <- setdiff(unique(abs(Txns$Txn.Id)), 0)
-			  
-			  #cumsum PnL in USD
-			  oCumsumList <- lapply(orderIds, function(oid) {
-			    targetTxn <- Txns[Txns$Txn.Id == oid, ]
-			    
-			    oRange <- which(index(TmpPeriods) %in% index(Txns)[abs(Txns$Txn.Id) == oid])
-			    if(length(oRange) == 1) {
-			      oRange <- oRange[1]:nrow(TmpPeriods)
-			    } else {
-			      oRange <- oRange[1]:oRange[2]
-			    }
-			    
-			    oPrices <- pricesLagged[oRange]
-			    oPrices[1] <- targetTxn$Txn.Price
-			    
-			    oIncrement <- targetTxn$Txn.Qty[[1]] * (TmpPeriods$Prices[oRange] - oPrices)
-			    cumsum(oIncrement) * CcyMult
-			  })
-			  oCumsumListMerged<- Reduce(merge, oCumsumList)
-			  totalCumsum <- xts(rowSums(na.locf(oCumsumListMerged), na.rm = T), index(oCumsumListMerged))
-			  
 			  #multiply the correct columns 
 			  columns<-c('Pos.Value', 'Txn.Value', 'Pos.Avg.Cost', 'Period.Realized.PL', 'Period.Unrealized.PL','Gross.Trading.PL', 'Txn.Fees')
 			  TmpPeriods[,columns] <- TmpPeriods[,columns] * drop(CcyMult)  # drop dims so recycling will occur
 			  TmpPeriods[,'Ccy.Mult'] <- CcyMult
+
+			  TxnsContra <- Txns
+			  oOpen <- which(TxnsContra$Txn.Id > 0)
+			  oClosed <- which(TxnsContra$Txn.Id < 0)
+			  TxnsContra[oOpen, 'Txn.Qty'] <- -1 * TxnsContra$Txn.Qty[oOpen] * TxnsContra$Txn.Price[oOpen]
+			  TxnsContra[oClosed, 'Txn.Qty'] <- -1 * TxnsContra[TxnsContra$Txn.Id %in% -TxnsContra$Txn.Id[oClosed], 'Txn.Qty']
+			  TxnsContra <- merge(TmpPeriods[,'Ccy.Mult'], TxnsContra$Txn.Qty)
+			  TxnsContra$Txn.Value <- TxnsContra$Txn.Qty * TxnsContra$Ccy.Mult
+			  TxnsContra$Pos.Qty <- cumsum(na.fill(TxnsContra$Txn.Qty, 0))
+			  TxnsContra$Pos.Value <- TxnsContra$Pos.Qty * TxnsContra$Ccy.Mult
+			  TxnsContra$Gross.Trading.PL <- TxnsContra[,'Pos.Value']- lag(TxnsContra[,'Pos.Value'], 1) - na.fill(TxnsContra[,'Txn.Value'], 0)
+			  TxnsContra$Net.Trading.PL <- TxnsContra[,'Gross.Trading.PL'] #TODO: handle TxnsContra[,'Txn.Fees']
+			 
+			  TxnsBase <- Txns
+			  CcyMult2 <- get(getInstrument(Symbol)$counter_currency)
+			  TxnsBase$Ccy.Mult <- CcyMult2[dateRange]
+			  TxnsBase$Txn.Value <- TxnsBase$Txn.Qty * TxnsBase$Ccy.Mult
+			  TxnsBase$Pos.Qty <- cumsum(na.fill(TxnsBase$Txn.Qty, 0))
+			  TxnsBase$Pos.Value <- TxnsBase$Pos.Qty * TxnsBase$Ccy.Mult
+			  TxnsBase$Gross.Trading.PL <- TxnsBase[,'Pos.Value']- lag(TxnsBase[,'Pos.Value'], 1) - na.fill(TxnsBase[,'Txn.Value'], 0)
+			  TxnsBase$Net.Trading.PL <- TxnsBase[,'Gross.Trading.PL'] #TODO: handle TxnsContra[,'Txn.Fees']
+			    
 			  #TmpPeriods$Net.Trading.PL.Cumsum <- totalCumsum
 			  TmpPeriods$Net.Trading.PL <- NULL
-			  TmpPeriods$Prices <- NULL
-			  TmpPeriods$Net.Trading.PL <- totalCumsum - lag(totalCumsum, 1)
-			  TmpPeriods[is.na(TmpPeriods[,'Net.Trading.PL']),'Net.Trading.PL']  <- 0
+			  TmpPeriods$Net.Trading.PL <- na.fill(TxnsContra$Net.Trading.PL + TxnsBase$Net.Trading.PL, 0)
 			  
 				  # this seems redundant in currency-pair portfolios
 			  #add change in Pos.Value in base currency
