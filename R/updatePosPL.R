@@ -284,30 +284,35 @@
 			  TmpPeriods[,columns] <- TmpPeriods[,columns] * drop(CcyMult)  # drop dims so recycling will occur
 			  TmpPeriods[,'Ccy.Mult'] <- CcyMult
 
-			  TxnsContra <- Txns
-			  oOpen <- which(TxnsContra$Txn.Id > 0)
-			  oClosed <- which(TxnsContra$Txn.Id < 0)
-			  TxnsContra[oOpen, 'Txn.Qty'] <- -1 * TxnsContra$Txn.Qty[oOpen] * TxnsContra$Txn.Price[oOpen]
-			  TxnsContra[oClosed, 'Txn.Qty'] <- -1 * TxnsContra[TxnsContra$Txn.Id %in% -TxnsContra$Txn.Id[oClosed], 'Txn.Qty']
-			  TxnsContra <- merge(TmpPeriods[,'Ccy.Mult'], TxnsContra$Txn.Qty)
-			  TxnsContra$Txn.Value <- TxnsContra$Txn.Qty * TxnsContra$Ccy.Mult
-			  TxnsContra$Pos.Qty <- cumsum(na.fill(TxnsContra$Txn.Qty, 0))
-			  TxnsContra$Pos.Value <- TxnsContra$Pos.Qty * TxnsContra$Ccy.Mult
-			  TxnsContra$Gross.Trading.PL <- TxnsContra[,'Pos.Value']- lag(TxnsContra[,'Pos.Value'], 1) - na.fill(TxnsContra[,'Txn.Value'], 0)
-			  TxnsContra$Net.Trading.PL <- TxnsContra[,'Gross.Trading.PL'] #TODO: handle TxnsContra[,'Txn.Fees']
+			  oOpen <- which(Txns$Txn.Id > 0)
+			  oClosed <- which(Txns$Txn.Id < 0)
 			 
 			  TxnsBase <- Txns
 			  CcyMult2 <- get(getInstrument(Symbol)$counter_currency)
+			  TxnsBase$Premium <- -1*TxnsBase$Txn.Fees/TxnsBase$Txn.Qty/TxnsBase$Txn.Price
 			  TxnsBase$Ccy.Mult <- CcyMult2[dateRange]
+			  TxnsBase$Txn.Fees <- TxnsBase$Txn.Qty * (TxnsBase$Ccy.Mult - TxnsBase$Ccy.Mult * (1 + TxnsBase$Premium / 2))
 			  TxnsBase$Txn.Value <- TxnsBase$Txn.Qty * TxnsBase$Ccy.Mult
 			  TxnsBase$Pos.Qty <- cumsum(na.fill(TxnsBase$Txn.Qty, 0))
 			  TxnsBase$Pos.Value <- TxnsBase$Pos.Qty * TxnsBase$Ccy.Mult
 			  TxnsBase$Gross.Trading.PL <- TxnsBase[,'Pos.Value']- lag(TxnsBase[,'Pos.Value'], 1) - na.fill(TxnsBase[,'Txn.Value'], 0)
-			  TxnsBase$Net.Trading.PL <- TxnsBase[,'Gross.Trading.PL'] #TODO: handle TxnsContra[,'Txn.Fees']
+			  TxnsBase$Net.Trading.PL <- na.fill(TxnsBase[,'Gross.Trading.PL'], 0) + na.fill(TxnsBase[,'Txn.Fees'], 0)
+			  
+			  TxnsContra <- Txns
+			  TxnsContra$Txn.Price <- -1 * TxnsContra$Txn.Fees/TxnsContra$Txn.Qty + TxnsContra$Txn.Price
+			  TxnsContra[oOpen, 'Txn.Qty'] <- -1 * TxnsContra$Txn.Qty[oOpen] * TxnsContra$Txn.Price[oOpen]
+			  TxnsContra[oClosed, 'Txn.Qty'] <- -1 * TxnsContra[TxnsContra$Txn.Id %in% -TxnsContra$Txn.Id[oClosed], 'Txn.Qty']
+			  TxnsContra$Txn.Fees <- TxnsBase$Txn.Fees[match(TxnsContra$Txn.Id, TxnsBase$Txn.Id)]
+			  TxnsContra <- merge(TmpPeriods[,'Ccy.Mult'], TxnsContra[, c('Txn.Qty', 'Txn.Fees')])
+			  TxnsContra$Txn.Value <- TxnsContra$Txn.Qty * TxnsContra$Ccy.Mult
+			  TxnsContra$Pos.Qty <- cumsum(na.fill(TxnsContra$Txn.Qty, 0))
+			  TxnsContra$Pos.Value <- TxnsContra$Pos.Qty * TxnsContra$Ccy.Mult
+			  TxnsContra$Gross.Trading.PL <- TxnsContra[,'Pos.Value']- lag(TxnsContra[,'Pos.Value'], 1) - na.fill(TxnsContra[,'Txn.Value'], 0)
+			  TxnsContra$Net.Trading.PL <- na.fill(TxnsContra[,'Gross.Trading.PL'], 0) + na.fill(TxnsContra[,'Txn.Fees'], 0)
 			    
-			  #TmpPeriods$Net.Trading.PL.Cumsum <- totalCumsum
+
 			  TmpPeriods$Net.Trading.PL <- NULL
-			  TmpPeriods$Net.Trading.PL <- na.fill(TxnsContra$Net.Trading.PL + TxnsBase$Net.Trading.PL, 0)
+			  TmpPeriods$Net.Trading.PL <- TxnsContra$Net.Trading.PL + TxnsBase$Net.Trading.PL
 			  
 				  # this seems redundant in currency-pair portfolios
 			  #add change in Pos.Value in base currency
