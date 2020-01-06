@@ -288,15 +288,18 @@
 			  oClosed <- which(Txns$Txn.Id < 0)
 			 
 			  TxnsBase <- Txns
-			  CcyMult2 <- get(getInstrument(Symbol)$counter_currency)
-			  TxnsBase$Premium <- -1*TxnsBase$Txn.Fees/TxnsBase$Txn.Qty/TxnsBase$Txn.Price
-			  TxnsBase$Ccy.Mult <- CcyMult2[dateRange]
-			  TxnsBase$Txn.Fees <- TxnsBase$Txn.Qty * (TxnsBase$Ccy.Mult - TxnsBase$Ccy.Mult * (1 + TxnsBase$Premium / 2))
-			  TxnsBase$Txn.Value <- TxnsBase$Txn.Qty * TxnsBase$Ccy.Mult
-			  TxnsBase$Pos.Qty <- cumsum(na.fill(TxnsBase$Txn.Qty, 0))
-			  TxnsBase$Pos.Value <- TxnsBase$Pos.Qty * TxnsBase$Ccy.Mult
-			  TxnsBase$Gross.Trading.PL <- TxnsBase[,'Pos.Value']- lag(TxnsBase[,'Pos.Value'], 1) - na.fill(TxnsBase[,'Txn.Value'], 0)
-			  TxnsBase$Net.Trading.PL <- na.fill(TxnsBase[,'Gross.Trading.PL'], 0) + na.fill(TxnsBase[,'Txn.Fees'], 0)
+			  if(tmp_instr$counter_currency != "USD") {
+			    CcyMult2 <- get(tmp_instr$counter_currency)
+			    TxnsBase$Premium <- -1*TxnsBase$Txn.Fees/TxnsBase$Txn.Qty/TxnsBase$Txn.Price
+			    TxnsBase$Ccy.Mult <- CcyMult2[dateRange]
+			    TxnsBase$Txn.Fees <- TxnsBase$Txn.Qty * (TxnsBase$Ccy.Mult - TxnsBase$Ccy.Mult * (1 + TxnsBase$Premium / 2))
+			    TxnsBase$Txn.Value <- TxnsBase$Txn.Qty * TxnsBase$Ccy.Mult
+			    TxnsBase$Pos.Qty <- cumsum(na.fill(TxnsBase$Txn.Qty, 0))
+			    TxnsBase$Pos.Value <- TxnsBase$Pos.Qty * TxnsBase$Ccy.Mult
+			    TxnsBase$Gross.Trading.PL <- TxnsBase[,'Pos.Value']- lag(TxnsBase[,'Pos.Value'], 1) - na.fill(TxnsBase[,'Txn.Value'], 0)
+			    TxnsBase$Net.Trading.PL <- na.fill(TxnsBase[,'Gross.Trading.PL'], 0) + na.fill(TxnsBase[,'Txn.Fees'], 0)
+			   
+			  }
 			  
 			  TxnsContra <- Txns
 			  TxnsContra$Txn.Price <- -1 * TxnsContra$Txn.Fees/TxnsContra$Txn.Qty + TxnsContra$Txn.Price
@@ -309,10 +312,14 @@
 			  TxnsContra$Pos.Value <- TxnsContra$Pos.Qty * TxnsContra$Ccy.Mult
 			  TxnsContra$Gross.Trading.PL <- TxnsContra[,'Pos.Value']- lag(TxnsContra[,'Pos.Value'], 1) - na.fill(TxnsContra[,'Txn.Value'], 0)
 			  TxnsContra$Net.Trading.PL <- na.fill(TxnsContra[,'Gross.Trading.PL'], 0) + na.fill(TxnsContra[,'Txn.Fees'], 0)
-			    
+			  
+			  if(tmp_instr$counter_currency != "USD") {
+			    TmpPeriods$Net.Trading.PL <- NULL
+			    TmpPeriods$Net.Trading.PL <- TxnsContra$Net.Trading.PL + TxnsBase$Net.Trading.PL
+			  } else {
+			    TmpPeriods$Net.Trading.PL <- TxnsContra$Net.Trading.PL
+			  }
 
-			  TmpPeriods$Net.Trading.PL <- NULL
-			  TmpPeriods$Net.Trading.PL <- TxnsContra$Net.Trading.PL + TxnsBase$Net.Trading.PL
 			  
 				  # this seems redundant in currency-pair portfolios
 			  #add change in Pos.Value in base currency
