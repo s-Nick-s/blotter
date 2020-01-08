@@ -123,7 +123,7 @@ addTxn <- function(Portfolio, Symbol, TxnId, TxnDate, TxnQty, TxnPrice, ..., Txn
     if(PrevPosQty!=0 && sign(PrevPosQty+TxnQty)!=sign(PrevPosQty) && PrevPosQty!=-TxnQty){
 	debug_msg = paste('addTxn: ',  Symbol, TxnId, formatC(PrevPosQty,format="e",digits=12), formatC(TxnQty,format="e",digits=12))
 	logdebug(debug_msg)
-	my_comparator = all.equal(PrevPosQty,-TxnQty)
+	my_comparator = all.equal(PrevPosQty, -as.numeric(TxnQty))
 	if(!is.logical(my_comparator)){
 		logwarn(paste('addTxn: trully different', debug_msg, my_comparator))
 		deltaID = findLastDigit(abs(TxnId))
