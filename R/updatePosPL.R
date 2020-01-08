@@ -303,9 +303,21 @@
 			  
 			  TxnsContra <- Txns
 			  TxnsContra$Txn.Price <- -1 * TxnsContra$Txn.Fees/TxnsContra$Txn.Qty + TxnsContra$Txn.Price
+			  TxnsContra$Txn.Fees <- TxnsBase$Txn.Fees[TxnsBase$Txn.Id %in% TxnsContra$Txn.Id]
+			  
+			  #additional logic for partialClosed
+			  TxnsContra$originalOpen <- 0
+			  TxnsContra$contraOpen <- 0
+			  TxnsContra$closedPercent <- 0
+			  oClosedMatches <- match(as.numeric(-TxnsContra$Txn.Id[oClosed]), TxnsContra$Txn.Id)
+			  TxnsContra[oClosed, 'originalOpen'] <- TxnsContra$Txn.Qty[oClosedMatches]
+			  TxnsContra[oClosed, 'closedPercent'] <- abs(TxnsContra$Txn.Qty[oClosed] / TxnsContra$originalOpen[oClosed])
+			  
 			  TxnsContra[oOpen, 'Txn.Qty'] <- -1 * TxnsContra$Txn.Qty[oOpen] * TxnsContra$Txn.Price[oOpen]
-			  TxnsContra[oClosed, 'Txn.Qty'] <- -1 * TxnsContra[TxnsContra$Txn.Id %in% -TxnsContra$Txn.Id[oClosed], 'Txn.Qty']
-			  TxnsContra$Txn.Fees <- TxnsBase$Txn.Fees[match(TxnsContra$Txn.Id, TxnsBase$Txn.Id)]
+			  TxnsContra[oClosed, 'contraOpen'] <- as.numeric(TxnsContra$Txn.Qty)[oClosedMatches]
+			  TxnsContra[oClosed, 'Txn.Qty'] <- -1 * TxnsContra$contraOpen[oClosed] * TxnsContra$closedPercent
+			  ###
+			  
 			  TxnsContra <- merge(TmpPeriods[,'Ccy.Mult'], TxnsContra[, c('Txn.Qty', 'Txn.Fees')])
 			  TxnsContra$Txn.Value <- TxnsContra$Txn.Qty * TxnsContra$Ccy.Mult
 			  TxnsContra$Pos.Qty <- cumsum(na.fill(TxnsContra$Txn.Qty, 0))
