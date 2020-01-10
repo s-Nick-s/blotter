@@ -325,12 +325,19 @@
 			  TxnsContra$Gross.Trading.PL <- TxnsContra[,'Pos.Value']- lag(TxnsContra[,'Pos.Value'], 1) - na.fill(TxnsContra[,'Txn.Value'], 0)
 			  TxnsContra$Net.Trading.PL <- na.fill(TxnsContra[,'Gross.Trading.PL'], 0) + na.fill(TxnsContra[,'Txn.Fees'], 0)
 			  
+			  colOrder <- colnames(TmpPeriods)
+			  TmpPeriods$Gross.Trading.PL <- TmpPeriods$Net.Trading.PL <- NULL
+
 			  if(tmp_instr$counter_currency != "USD") {
-			    TmpPeriods$Net.Trading.PL <- NULL
-			    TmpPeriods$Net.Trading.PL <- TxnsContra$Net.Trading.PL + TxnsBase$Net.Trading.PL
+			    totalPl <- TxnsContra$Net.Trading.PL + TxnsBase$Net.Trading.PL
+			    TmpPeriods$Net.Trading.PL <- totalPl
+			    TmpPeriods$Gross.Trading.PL <- totalPl - na.fill(TxnsContra$Txn.Fees + TxnsBase$Txn.Fees, 0)
 			  } else {
 			    TmpPeriods$Net.Trading.PL <- TxnsContra$Net.Trading.PL
+			    TmpPeriods$Gross.Trading.PL <- TmpPeriods$Net.Trading.PL - na.fill(TxnsContra$Txn.Fees, 0)
 			  }
+			  TmpPeriods$Net.Trading.PL <- na.fill(TmpPeriods$Net.Trading.PL, 0)
+			  TmpPeriods$Gross.Trading.PL <-  na.fill(TmpPeriods$Gross.Trading.PL, 0)
 
 			  
 				  # this seems redundant in currency-pair portfolios
@@ -344,7 +351,7 @@
 			  # TmpPeriods[,columns] <- TmpPeriods[,columns] + drop(CcyMove)  # drop dims so recycling will occur
 			  
 			  #stick it in posPL.ccy
-			  Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]]<-rbind(Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]],TmpPeriods)
+			  Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]]<-rbind(Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]],TmpPeriods[, colOrder])
 			}
 		}
   }
