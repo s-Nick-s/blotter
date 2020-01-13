@@ -209,72 +209,9 @@
 			Portfolio$symbols[[Symbol]][[paste('posPL',p.ccy.str,sep='.')]]<-window(Portfolio$symbols[[Symbol]][[paste('posPL',p.ccy.str,sep='.')]], end= startDate); # USD-denominated PnLs aren't updated or used for virtual portfolios
 		
 			# now do the currency conversions for the whole date range
-			TmpPeriods<-Portfolio$symbols[[Symbol]]$posPL[dateRange]
-		 
-			CcyMult = NA 
-			FXrate = NA
-			invert=FALSE
-			if(!is.null(attr(Portfolio,'currency'))) {
-				if (tmp_instr$currency==p.ccy.str) {
-					CcyMult<-1			
-				} else {
-					port_currency<-try(getInstrument(p.ccy.str), silent=TRUE)
-					if(inherits(port_currency,"try-error") | !is.instrument(port_currency)){
-						warning("Currency",p.ccy.str," not found, using currency multiplier of 1")
-						CcyMult<-1
-					} else { #convert from instr ccy to portfolio ccy
-						FXrate.str<-paste(tmp_instr$currency, p.ccy.str, sep='') # currency quote convention is EURUSD which reads as "USD per EUR" or "EUR quoted in USD"
-						FXrate<-try(get(FXrate.str), silent=TRUE)
-						#TODO FIXME: this uses convention to sort out the rate, we should check $currency and $counter_currency and make sure directionality is correct 
-						if(inherits(FXrate,"try-error")){
-							FXrate.str<-paste(p.ccy.str, tmp_instr$currency, sep='')
-							FXrate<-try(get(FXrate.str), silent=TRUE)
-							if(inherits(FXrate,"try-error")){ 
-								warning("Exchange Rate",FXrate.str," not found for symbol,',Symbol,' using currency multiplier of 1")
-								CcyMult<-1
-							} else {
-								invert=TRUE
-							}
-						}
-					}		
-					
-				}
-			} else {
-				message("no currency set on portfolio, using currency multiplier of 1")
-				CcyMult =1
-			}
-			if(is.na(CcyMult) && !is.na(FXrate)) {
-				if(inherits(FXrate,'xts')){
-					FXrate.sub<-FXrate[dateRange];
-					if(nrow(FXrate.sub)<1) # if this trick is applied to Prices, why not FXrates?
-					{
-						tmpEndDate<-if(is.null(endDate)||is.na(endDate)) {max(index(Txns))
-						} else endDate;
-						FXrate.sub=xts(cbind(last(window(FXrate, end = tmpEndDate))),as.Date(tmpEndDate))
-						warning('no FXrate available for ',FXrate.str,' in ',dateRange,' : using last available price and marking to ', endDate)	
-					}				
-				# hopefully this works. Same column name that got us Prices will get us correct CcyMult. Which side of quote MT4 marks USD conversion to?
-					if(ncol(FXrate.sub)>1) 
-					{
-						CcyMult <- getPrice(FXrate.sub,...)
-					}	else {
-						CcyMult <- FXrate.sub
-					}
-
-					CcyMult <- na.locf(merge(CcyMult,index(TmpPeriods)))
-					CcyMult <- CcyMult[index(TmpPeriods)]
-
-				} else {
-					CcyMult<-as.numeric(FXrate)
-				}
-			} else {
-				CcyMult<-1
-			}
-			if(isTRUE(invert)){
-				# 20191007 - is this condition ever met?
-				# portfolio and instrument have different currencies, and FXrate was in the wrong direction
-				CcyMult<-1/CcyMult
-			}
+			TmpPeriods<-tmpPL#Portfolio$symbols[[Symbol]]$posPL[dateRange]
+			
+			CcyMult <- .getCCyMult(Portfolio, tmp_instr, p.ccy.str, index(TmpPeriods), dateRange, ...)
 			
 			if (length(CcyMult)==1 && CcyMult==1){
 			  Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]] <- Portfolio[['symbols']][[Symbol]][['posPL']]
@@ -287,30 +224,35 @@
 			  oOpen <- which(Txns$Txn.Id > 0)
 			  oClosed <- which(Txns$Txn.Id < 0)
 			 
+			  
 			  TxnsBase <- Txns
 			  if(tmp_instr$counter_currency != "USD") {
-			    CcyMult2 <- get(tmp_instr$counter_currency)
+			    #CcyMult2 <- get(tmp_instr$counter_currency)
 			    TxnsBase$Premium <- -1*TxnsBase$Txn.Fees/TxnsBase$Txn.Qty/TxnsBase$Txn.Price
-			    TxnsBase$Ccy.Mult <- CcyMult2[dateRange]
+			    CcyMultBase <- .getCCyMult(Portfolio, list(currency=tmp_instr$counter_currency), p.ccy.str,
+			                                     c(index(TxnsBase), index(TmpPeriods)), dateRange)
+			    names(CcyMultBase) <- 'Ccy.Mult'
+			    TxnsBase <- merge(TxnsBase, CcyMultBase)
+			    TxnsBase[is.na(TxnsBase)] <- 0
 			    TxnsBase$Txn.Fees <- TxnsBase$Txn.Qty * (TxnsBase$Ccy.Mult - TxnsBase$Ccy.Mult * (1 + TxnsBase$Premium / 2))
 			    TxnsBase$Txn.Value <- TxnsBase$Txn.Qty * TxnsBase$Ccy.Mult
-			    TxnsBase$Pos.Qty <- cumsum(na.fill(TxnsBase$Txn.Qty, 0))
+			    TxnsBase$Pos.Qty <- cumsum(TxnsBase$Txn.Qty)
 			    TxnsBase$Pos.Value <- TxnsBase$Pos.Qty * TxnsBase$Ccy.Mult
-			    TxnsBase$Gross.Trading.PL <- TxnsBase[,'Pos.Value']- lag(TxnsBase[,'Pos.Value'], 1) - na.fill(TxnsBase[,'Txn.Value'], 0)
-			    TxnsBase$Net.Trading.PL <- na.fill(TxnsBase[,'Gross.Trading.PL'], 0) + na.fill(TxnsBase[,'Txn.Fees'], 0)
+			    TxnsBase$Gross.Trading.PL <- TxnsBase[,'Pos.Value']- lag(TxnsBase[,'Pos.Value'], 1) - TxnsBase[,'Txn.Value']
+			    TxnsBase$Net.Trading.PL <- na.fill(TxnsBase[,'Gross.Trading.PL'], 0) + TxnsBase[,'Txn.Fees']
 			   
 			  }
 			  
 			  TxnsContra <- Txns
 			  TxnsContra$Txn.Price <- -1 * TxnsContra$Txn.Fees/TxnsContra$Txn.Qty + TxnsContra$Txn.Price
-			  TxnsContra$Txn.Fees <- TxnsBase$Txn.Fees[TxnsBase$Txn.Id %in% TxnsContra$Txn.Id]
+			  TxnsContra$Txn.Fees[TxnsContra$Txn.Id != 0] <- TxnsBase$Txn.Fees[TxnsBase$Txn.Id %in% setdiff(TxnsContra$Txn.Id, 0)]
 			  
 			  #additional logic for partialClosed
 			  TxnsContra$originalOpen <- 0
 			  TxnsContra$contraOpen <- 0
 			  TxnsContra$closedPercent <- 0
 			  oClosedMatches <- match(as.numeric(-TxnsContra$Txn.Id[oClosed]), TxnsContra$Txn.Id)
-			  TxnsContra[oClosed, 'originalOpen'] <- TxnsContra$Txn.Qty[oClosedMatches]
+			  TxnsContra[oClosed, 'originalOpen'] <- as.numeric(TxnsContra$Txn.Qty)[oClosedMatches]
 			  TxnsContra[oClosed, 'closedPercent'] <- abs(TxnsContra$Txn.Qty[oClosed] / TxnsContra$originalOpen[oClosed])
 			  
 			  TxnsContra[oOpen, 'Txn.Qty'] <- -1 * TxnsContra$Txn.Qty[oOpen] * TxnsContra$Txn.Price[oOpen]
@@ -318,28 +260,32 @@
 			  TxnsContra[oClosed, 'Txn.Qty'] <- -1 * TxnsContra$contraOpen[oClosed] * TxnsContra$closedPercent
 			  ###
 			  
-			  TxnsContra <- merge(TmpPeriods[,'Ccy.Mult'], TxnsContra[, c('Txn.Qty', 'Txn.Fees')])
+			  #TxnsContra <- merge(TmpPeriods[,'Ccy.Mult'], TxnsContra[, c('Txn.Qty', 'Txn.Fees')])
+			  CcyMultContra <- .getCCyMult(Portfolio, list(currency=tmp_instr$currency), p.ccy.str,
+			                             c(index(TxnsContra), index(TmpPeriods)), dateRange)
+			  names(CcyMultContra) <- 'Ccy.Mult'
+			  TxnsContra <- merge(TxnsContra, CcyMultContra)
+			  TxnsContra[is.na(TxnsContra)] <- 0
 			  TxnsContra$Txn.Value <- TxnsContra$Txn.Qty * TxnsContra$Ccy.Mult
-			  TxnsContra$Pos.Qty <- cumsum(na.fill(TxnsContra$Txn.Qty, 0))
+			  TxnsContra$Pos.Qty <- cumsum(TxnsContra$Txn.Qty)
 			  TxnsContra$Pos.Value <- TxnsContra$Pos.Qty * TxnsContra$Ccy.Mult
-			  TxnsContra$Gross.Trading.PL <- TxnsContra[,'Pos.Value']- lag(TxnsContra[,'Pos.Value'], 1) - na.fill(TxnsContra[,'Txn.Value'], 0)
-			  TxnsContra$Net.Trading.PL <- na.fill(TxnsContra[,'Gross.Trading.PL'], 0) + na.fill(TxnsContra[,'Txn.Fees'], 0)
+			  TxnsContra$Gross.Trading.PL <- TxnsContra[,'Pos.Value']- lag(TxnsContra[,'Pos.Value'], 1) - TxnsContra[,'Txn.Value']
+			  TxnsContra$Net.Trading.PL <- na.fill(TxnsContra[,'Gross.Trading.PL'], 0) + TxnsContra[,'Txn.Fees']
+			  
 			  
 			  colOrder <- colnames(TmpPeriods)
 			  TmpPeriods$Gross.Trading.PL <- TmpPeriods$Net.Trading.PL <- NULL
-
 			  if(tmp_instr$counter_currency != "USD") {
 			    totalPl <- TxnsContra$Net.Trading.PL + TxnsBase$Net.Trading.PL
 			    TmpPeriods$Net.Trading.PL <- totalPl
-			    TmpPeriods$Gross.Trading.PL <- totalPl - na.fill(TxnsContra$Txn.Fees + TxnsBase$Txn.Fees, 0)
+			    TmpPeriods$Gross.Trading.PL <- totalPl - (TxnsContra$Txn.Fees + TxnsBase$Txn.Fees)
 			  } else {
 			    TmpPeriods$Net.Trading.PL <- TxnsContra$Net.Trading.PL
-			    TmpPeriods$Gross.Trading.PL <- TmpPeriods$Net.Trading.PL - na.fill(TxnsContra$Txn.Fees, 0)
+			    TmpPeriods$Gross.Trading.PL <- TmpPeriods$Net.Trading.PL - TxnsContra$Txn.Fees
 			  }
 			  TmpPeriods$Net.Trading.PL <- na.fill(TmpPeriods$Net.Trading.PL, 0)
 			  TmpPeriods$Gross.Trading.PL <-  na.fill(TmpPeriods$Gross.Trading.PL, 0)
 
-			  
 				  # this seems redundant in currency-pair portfolios
 			  #add change in Pos.Value in base currency
 			  # LagValue <- as.numeric(last(Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]][,'Pos.Value']))
@@ -351,12 +297,83 @@
 			  # TmpPeriods[,columns] <- TmpPeriods[,columns] + drop(CcyMove)  # drop dims so recycling will occur
 			  
 			  #stick it in posPL.ccy
-			  Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]]<-rbind(Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]],TmpPeriods[, colOrder])
+			  Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]]<-rbind(Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]], TmpPeriods[, colOrder])
 			}
 		}
   }
   #portfolio is already an environment, it's been updated in place
   #assign( paste("portfolio",pname,sep='.'), Portfolio, envir=.blotter )
+}
+
+.getCCyMult <- function(Portfolio, tmp_instr, p.ccy.str, targetIdx, dateRange, ...) {
+  CcyMult = NA 
+  FXrate = NA
+  invert=FALSE
+  if(!is.null(attr(Portfolio,'currency'))) {
+    if (tmp_instr$currency==p.ccy.str) {
+      CcyMult<-1			
+    } else {
+      port_currency<-try(getInstrument(p.ccy.str), silent=TRUE)
+      if(inherits(port_currency,"try-error") | !is.instrument(port_currency)){
+        warning("Currency",p.ccy.str," not found, using currency multiplier of 1")
+        CcyMult<-1
+      } else { #convert from instr ccy to portfolio ccy
+        FXrate.str<-paste(tmp_instr$currency, p.ccy.str, sep='') # currency quote convention is EURUSD which reads as "USD per EUR" or "EUR quoted in USD"
+        FXrate<-try(get(FXrate.str), silent=TRUE)
+        #TODO FIXME: this uses convention to sort out the rate, we should check $currency and $counter_currency and make sure directionality is correct 
+        if(inherits(FXrate,"try-error")){
+          FXrate.str<-paste(p.ccy.str, tmp_instr$currency, sep='')
+          FXrate<-try(get(FXrate.str), silent=TRUE)
+          if(inherits(FXrate,"try-error")){ 
+            warning("Exchange Rate",FXrate.str," not found for symbol,',Symbol,' using currency multiplier of 1")
+            CcyMult<-1
+          } else {
+            invert=TRUE
+          }
+        }
+      }		
+      
+    }
+  } else {
+    message("no currency set on portfolio, using currency multiplier of 1")
+    CcyMult =1
+  }
+  if(is.na(CcyMult) && !is.na(FXrate)) {
+    if(inherits(FXrate,'xts')){
+      FXrate.sub<-FXrate[dateRange];
+      if(nrow(FXrate.sub)<1) # if this trick is applied to Prices, why not FXrates?
+      {
+        tmpEndDate<-if(is.null(endDate)||is.na(endDate)) {max(index(Txns))
+        } else endDate;
+        FXrate.sub=xts(cbind(last(window(FXrate, end = tmpEndDate))),as.Date(tmpEndDate))
+        warning('no FXrate available for ',FXrate.str,' in ',dateRange,' : using last available price and marking to ', endDate)	
+      }				
+      # hopefully this works. Same column name that got us Prices will get us correct CcyMult. Which side of quote MT4 marks USD conversion to?
+      if(ncol(FXrate.sub)>1) 
+      {
+        CcyMult <- getPrice(FXrate.sub,...)
+      }	else {
+        CcyMult <- FXrate.sub
+      }
+      
+      targetIdx <- targetIdx[!duplicated(targetIdx)]
+      CcyMult <- na.locf(merge(CcyMult, targetIdx))
+      CcyMult <- na.locf(CcyMult, fromLast = T)
+      CcyMult <- CcyMult[targetIdx]
+      
+    } else {
+      CcyMult<-as.numeric(FXrate)
+    }
+  } else {
+    CcyMult<-1
+  }
+  if(isTRUE(invert)){
+    # 20191007 - is this condition ever met?
+    # portfolio and instrument have different currencies, and FXrate was in the wrong direction
+    CcyMult<-1/CcyMult
+  }
+  
+  return(CcyMult)
 }
 
 .parse_interval <- function(interval) {
