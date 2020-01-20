@@ -120,6 +120,7 @@
 				colnames(Txns)<-cn;
 			}
 		} 
+	  if(!is.null(dargs$first_time)) {first_time<-dargs$first_time} else first_time=index(Txns)[Txns$Txn.Id != 0][1]
 			
 		if(nrow(Prices)<1) {
 			# special provision for the case when endDate isn't available 
@@ -222,10 +223,12 @@
 			  TmpPeriods[,'Ccy.Mult'] <- CcyMult
 			  colOrder <- colnames(TmpPeriods)
 			  
-			  if(any(Txns$Txn.Id != 0)) {
+			  if(any(Txns$Txn.Id != 0) && !is.na(first_time)) {
 			  
 			    TmpPeriods$Period.Realized.PL <- TmpPeriods$Period.Realized.PL * drop(CcyMult)
-			    TmpPeriods$helperSeries <- cumsum(TmpPeriods$Period.Unrealized.PL) * drop(CcyMult)
+			    TmpPeriods$helperSeries <- 0
+			    indexVec <- index(TmpPeriods) >= first_time
+			    TmpPeriods$helperSeries[indexVec] <- cumsum(TmpPeriods$Period.Unrealized.PL[indexVec]) * drop(CcyMult)
 			    TmpPeriods$Period.Unrealized.PL <- TmpPeriods$helperSeries - lag(TmpPeriods$helperSeries)
 			    TmpPeriods$Period.Unrealized.PL[is.na(TmpPeriods$Period.Unrealized.PL)] <- 0
 
