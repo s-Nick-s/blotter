@@ -68,7 +68,7 @@
 #' @author Peter Carl, Brian G. Peterson
 #' @export addTxn
 #' @export addTxns
-addTxn <- function(Portfolio, Symbol, TxnId, TxnDate, TxnQty, TxnPrice, ..., TxnFees=0, allowRebates=FALSE, ConMult=NULL, verbose=TRUE, eps=1e-06)
+addTxn <- function(Portfolio, Symbol, TxnId, TxnDate, TxnQty, TxnPrice, ..., TxnFees=0, TxnPriceOpen = 0, allowRebates=FALSE, ConMult=NULL, verbose=TRUE, eps=1e-06)
 { 
     result <- c()
     pname <- Portfolio
@@ -160,7 +160,7 @@ addTxn <- function(Portfolio, Symbol, TxnId, TxnDate, TxnQty, TxnPrice, ..., Txn
 
 	
     # Calculate any realized profit or loss (net of fees) from the transaction
-    GrossTxnRealizedPL = TxnQty * ConMult * (PrevPosAvgCost - TxnAvgCost)
+    GrossTxnRealizedPL = -1 * TxnQty * ConMult * (TxnPrice - as.numeric(TxnPriceOpen))
 
   	# if the previous position is zero, RealizedPL = 0
   	# if previous position is positive and position is larger, RealizedPL =0
