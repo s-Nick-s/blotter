@@ -132,7 +132,7 @@ addTxn <- function(Portfolio, Symbol, TxnId, TxnDate, TxnQty, TxnPrice, ..., Txn
 		# if split, TxnId 111 becomes 111.1 and 111.2; TxnId -111.1 becomes -111.11 and -111.12
 		txnFeeQty=TxnFees/abs(TxnQty) # calculate fees pro-rata by quantity
 		result <- c(result, 
-		addTxn(Portfolio=pname, Symbol=Symbol, TxnId = TxnId1, TxnDate=TxnDate, TxnQty=-PrevPosQty, TxnPrice=TxnPrice, ..., 
+		addTxn(Portfolio=pname, Symbol=Symbol, TxnId = TxnId1, TxnDate=TxnDate, TxnQty=-PrevPosQty, TxnPrice=TxnPrice, TxnPriceOpen = TxnPriceOpen, ..., 
 				TxnFees = txnFeeQty*abs(PrevPosQty), ConMult = ConMult, verbose = verbose, eps=eps, allowRebates=allowRebates))
 
 		TxnDate=TxnDate+2*eps #transactions need unique timestamps, so increment a bit
