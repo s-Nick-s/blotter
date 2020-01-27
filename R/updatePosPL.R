@@ -12,7 +12,7 @@
 #' @return Regular time series of position information and PL 
 #' @author Peter Carl, Brian Peterson
 #' @rdname updatePosPL
-.updatePosPL <- function(Portfolio, Symbol, Dates=NULL, Prices=NULL, ConMult=NULL, Interval=NULL, virtual = FALSE ,  ...)
+.updatePosPL <- function(Portfolio, Symbol, Dates=NULL, Prices=NULL, ClientId=0, Interval=NULL, virtual = FALSE ,  ...)
 # 20150721
 # TO MARK TO BID OR ASK, pass symbol argument = "bid" or "ask". This CAN be done, because our Portfolios are only long or short (e.g. all portfolio should be marked to only 1 side of the quote)
 # what about virtual.Long and virtual.Short portfolios ? If we mark them to bid and ask, will Virtial PnL == Actual PnL ? This depends on how bids/asks are calculated for crosses !
@@ -138,12 +138,12 @@
 		# Get values frop priorPL into Txns; only keep columns we need from Txns
 		# NOTE: There will usually be fewer transactions than price observations,
 		# so do as much as possible before merging with potentially large price data
-		TxnsCols <- c('Txn.Value','Txn.Fees','Gross.Txn.Realized.PL','Net.Txn.Realized.PL','Pos.Qty','Pos.Avg.Cost','Con.Mult')
+		TxnsCols <- c('Txn.Value','Txn.Fees','Gross.Txn.Realized.PL','Net.Txn.Realized.PL','Pos.Qty','Pos.Avg.Cost','Client.Id')
 		tmpPL <- merge(Txns[,TxnsCols], xts(,index(priorPL)))
 		if(is.na(tmpPL[1,'Pos.Qty']))
 			tmpPL[1,'Pos.Qty'] <- priorPL[1,'Pos.Qty']
-		if(is.na(tmpPL[1,'Con.Mult']))
-			tmpPL[1,'Con.Mult'] <- priorPL[1,'Con.Mult']
+		# if(is.na(tmpPL[1,'Con.Mult']))
+		# 	tmpPL[1,'Con.Mult'] <- priorPL[1,'Con.Mult']
 		if(is.na(tmpPL[1,'Pos.Avg.Cost']))
 			tmpPL[1,'Pos.Avg.Cost'] <- priorPL[1,'Pos.Avg.Cost']
 		
@@ -160,20 +160,20 @@
 		}
 		# na.locf any missing prices with last observation (this assumption seems the only rational one for vectorization)
 		# and na.locf Pos.Qty,Con.Mult,Pos.Avg.Cost to instantiate $posPL new rows
-		columns <- c('Prices','Pos.Qty','Con.Mult','Pos.Avg.Cost')
+		columns <- c('Prices','Pos.Qty','Client.Id','Pos.Avg.Cost')
 		tmpPL[,columns] <- na.locf(tmpPL[,columns])
 			
 		#TODO check for instrument multiplier rather than doing all this messing around, if possible.
-		tmpPL[,'Con.Mult'] <- na.locf(tmpPL[,'Con.Mult'], fromLast=TRUE) # carry NA's backwards too, might cause problems with options contracts that change multiplier
-		if(any(naConMult <- is.na(tmpPL[,'Con.Mult'])))  # belt + suspenders?
-			tmpPL[naConMult,'Con.Mult'] <- 1
+		# tmpPL[,'Con.Mult'] <- na.locf(tmpPL[,'Con.Mult'], fromLast=TRUE) # carry NA's backwards too, might cause problems with options contracts that change multiplier
+		# if(any(naConMult <- is.na(tmpPL[,'Con.Mult'])))  # belt + suspenders?
+		# 	tmpPL[naConMult,'Con.Mult'] <- 1
 		
 		# zerofill Txn.Value, Txn.Fees
 		tmpPL[is.na(tmpPL[,'Txn.Value']),'Txn.Value'] <- 0
 		tmpPL[is.na(tmpPL[,'Txn.Fees']),'Txn.Fees']  <- 0
 		
 		# matrix calc Pos.Qty * Price * Con.Mult to get Pos.Value
-		tmpPL <- merge(tmpPL, Pos.Value=drop(tmpPL[,'Pos.Qty'] * tmpPL[,'Con.Mult'] * tmpPL[,'Prices']))
+		tmpPL <- merge(tmpPL, Pos.Value=drop(tmpPL[,'Pos.Qty'] * tmpPL[,'Prices']))
 		
 		LagValue <- lag(tmpPL[,'Pos.Value'])
 		LagValue[is.na(LagValue)] <- 0  # needed to avoid a possible NA on the first value that would mess up the Gross.Trading.PL calc
@@ -194,7 +194,7 @@
 		tmpPL[,'Ccy.Mult'] <- 1
 		
 		# reorder,discard  columns for insert into portfolio object
-		tmpPL <- tmpPL[,c('Pos.Qty', 'Con.Mult', 'Ccy.Mult', 'Pos.Value', 'Pos.Avg.Cost', 'Txn.Value',  'Period.Realized.PL', 'Period.Unrealized.PL','Gross.Trading.PL', 'Txn.Fees', 'Net.Trading.PL')]
+		tmpPL <- tmpPL[,c('Pos.Qty', 'Client.Id', 'Ccy.Mult', 'Pos.Value', 'Pos.Avg.Cost', 'Txn.Value',  'Period.Realized.PL', 'Period.Unrealized.PL','Gross.Trading.PL', 'Txn.Fees', 'Net.Trading.PL')]
 
 		# rbind to $posPL slot
 		tmpPL <- tmpPL[dateRange] #subset to get rid of any prior period Txn or PosPL rows we inserted

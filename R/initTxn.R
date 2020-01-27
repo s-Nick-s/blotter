@@ -11,7 +11,7 @@
     ## TODO: Add 'Txn.Type' column
     ## TODO: DIVIDEND Txn.Type creates a realized gain
     txn <- xts( as.matrix(t(c(0,0,0,0,0,initPosQty,0,0,0,0,0))), order.by=as.POSIXct(initDate, ...=...), ...=... )
-    colnames(txn) <- c('Txn.Id', 'Txn.Qty', 'Txn.Price', 'Txn.Value', 'Txn.Avg.Cost', 'Pos.Qty', 'Pos.Avg.Cost', 'Gross.Txn.Realized.PL', 'Txn.Fees', 'Net.Txn.Realized.PL', 'Con.Mult')
+    colnames(txn) <- c('Txn.Id', 'Txn.Qty', 'Txn.Price', 'Txn.Value', 'Txn.Price.Open', 'Pos.Qty', 'Pos.Avg.Cost', 'Gross.Txn.Realized.PL', 'Txn.Fees', 'Net.Txn.Realized.PL', 'Client.Id')
     class(txn)<-c("transactions",class(txn))
     return(txn)
 }

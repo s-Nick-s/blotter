@@ -19,7 +19,7 @@ getTxns <- function(Portfolio, Symbol, Dates)
         stop("Portfolio ", pname, " not found, use initPortf() to create a new portfolio first")
     
     TxnData = Portfolio$symbols[[Symbol]]$txn
-    Txns = TxnData[Dates,c('Txn.Qty', 'Txn.Price', 'Txn.Fees', 'Txn.Value', 'Txn.Avg.Cost', 'Net.Txn.Realized.PL')]
+    Txns = TxnData[Dates,c('Txn.Qty', 'Txn.Price', 'Txn.Fees', 'Txn.Value', 'Txn.Price.Open', 'Net.Txn.Realized.PL')]
     return(Txns)
 }
 

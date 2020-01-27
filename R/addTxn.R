@@ -68,7 +68,7 @@
 #' @author Peter Carl, Brian G. Peterson
 #' @export addTxn
 #' @export addTxns
-addTxn <- function(Portfolio, Symbol, TxnId, TxnDate, TxnQty, TxnPrice, ..., TxnFees=0, TxnPriceOpen = 0, allowRebates=FALSE, ConMult=NULL, verbose=TRUE, eps=1e-06)
+addTxn <- function(Portfolio, Symbol, TxnId, TxnDate, TxnQty, TxnPrice, ..., TxnFees=0, TxnPriceOpen = 0, allowRebates=FALSE, ClientId=0, verbose=TRUE, eps=1e-06)
 { 
     result <- c()
     pname <- Portfolio
@@ -133,7 +133,7 @@ addTxn <- function(Portfolio, Symbol, TxnId, TxnDate, TxnQty, TxnPrice, ..., Txn
 		txnFeeQty=TxnFees/abs(TxnQty) # calculate fees pro-rata by quantity
 		result <- c(result, 
 		addTxn(Portfolio=pname, Symbol=Symbol, TxnId = TxnId1, TxnDate=TxnDate, TxnQty=-PrevPosQty, TxnPrice=TxnPrice, ..., 
-				TxnFees = txnFeeQty*abs(PrevPosQty), ConMult = ConMult, verbose = verbose, eps=eps, allowRebates=allowRebates))
+				TxnFees = txnFeeQty*abs(PrevPosQty), ClientId = ClientId, verbose = verbose, eps=eps, allowRebates=allowRebates))
 
 		TxnDate=TxnDate+2*eps #transactions need unique timestamps, so increment a bit
 		TxnQty=TxnQty+PrevPosQty
@@ -142,13 +142,13 @@ addTxn <- function(Portfolio, Symbol, TxnId, TxnDate, TxnQty, TxnPrice, ..., Txn
 	}
     }
     
-    if(is.null(ConMult) | !hasArg(ConMult)){
-        tmp_instr<-getInstrument(Symbol)
-        ConMult<-tmp_instr$multiplier
-    }
+    # if(is.null(ConMult) | !hasArg(ConMult)){
+    #     tmp_instr<-getInstrument(Symbol)
+    #     ConMult<-tmp_instr$multiplier
+    # }
     # Calculate the value and average cost of the transaction
-    TxnValue = .calcTxnValue(TxnQty, TxnPrice, 0, ConMult) # Gross of Fees
-    TxnAvgCost = .calcTxnAvgCost(TxnValue, TxnQty, ConMult)
+    TxnValue = .calcTxnValue(TxnQty, TxnPrice, 0, 1) # Gross of Fees
+    #TxnAvgCost = .calcTxnAvgCost(TxnValue, TxnQty, 1)
 
     # Calculate the change in position
     PosQty = PrevPosQty + TxnQty
@@ -156,11 +156,11 @@ addTxn <- function(Portfolio, Symbol, TxnId, TxnDate, TxnQty, TxnPrice, ..., Txn
 
     # Calculate the resulting position's average cost
     PrevPosAvgCost = .getPosAvgCost(pname, Symbol, TxnDate)
-    PosAvgCost = .calcPosAvgCost(PrevPosQty, PrevPosAvgCost, TxnValue, PosQty, ConMult)
+    PosAvgCost = .calcPosAvgCost(PrevPosQty, PrevPosAvgCost, TxnValue, PosQty, 1)
 
 	
     # Calculate any realized profit or loss (net of fees) from the transaction
-    GrossTxnRealizedPL = -1 * TxnQty * ConMult * (TxnPrice - as.numeric(TxnPriceOpen))
+    GrossTxnRealizedPL = -1 * TxnQty * (TxnPrice - as.numeric(TxnPriceOpen))
 
   	# if the previous position is zero, RealizedPL = 0
   	# if previous position is positive and position is larger, RealizedPL =0
@@ -171,8 +171,8 @@ addTxn <- function(Portfolio, Symbol, TxnId, TxnDate, TxnQty, TxnPrice, ..., Txn
 	  NetTxnRealizedPL = GrossTxnRealizedPL + txnfees
 
     # Store the transaction and calculations
-    NewTxn = xts(t(c(TxnId, TxnQty, TxnPrice, TxnValue, TxnAvgCost, PosQty, PosAvgCost, GrossTxnRealizedPL, txnfees, NetTxnRealizedPL, ConMult)), order.by=TxnDate)
-    #colnames(NewTxns) = c('Txn.Qty', 'Txn.Price', 'Txn.Value', 'Txn.Avg.Cost', 'Pos.Qty', 'Pos.Avg.Cost', 'Gross.Txn.Realized.PL', 'Txn.Fees', 'Net.Txn.Realized.PL', 'Con.Mult')
+    NewTxn = xts(t(c(TxnId, TxnQty, TxnPrice, TxnValue, TxnPriceOpen, PosQty, PosAvgCost, GrossTxnRealizedPL, txnfees, NetTxnRealizedPL, ClientId)), order.by=TxnDate)
+    #colnames(NewTxns) = c('Txn.Qty', 'Txn.Price', 'Txn.Value', 'Txn.Price.Open', 'Pos.Qty', 'Pos.Avg.Cost', 'Gross.Txn.Realized.PL', 'Txn.Fees', 'Net.Txn.Realized.PL', 'Client.Id')
     Portfolio$symbols[[Symbol]]$txn<-rbind(Portfolio$symbols[[Symbol]]$txn, NewTxn)
 
     # Warn if the transaction timestamp is not after initDate
