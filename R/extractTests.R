@@ -38,7 +38,7 @@ extractTxns <- function(Portfolio)
 								"', TxnQty =",tmpTxns[i,'Txn.Qty'],
 								", TxnPrice =",tmpTxns[i,'Txn.Price'],
 								", TxnFees =",tmpTxns[i,'Txn.Fees'],
-								", ConMult =",tmpTxns[i,'Client.Id'],
+								", ClientId =",tmpTxns[i,'Client.Id'],
 								")",
 								sep=''
 							)
