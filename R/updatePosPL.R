@@ -12,7 +12,7 @@
 #' @return Regular time series of position information and PL 
 #' @author Peter Carl, Brian Peterson
 #' @rdname updatePosPL
-.updatePosPL <- function(Portfolio, Symbol, Dates=NULL, Prices=NULL, ClientId=0, Interval=NULL, virtual = FALSE ,  ...)
+.updatePosPL <- function(Portfolio, Symbol, Dates=NULL, Prices=NULL, ClientId=0, Interval=NULL, virtual = FALSE , ...)
 # 20150721
 # TO MARK TO BID OR ASK, pass symbol argument = "bid" or "ask". This CAN be done, because our Portfolios are only long or short (e.g. all portfolio should be marked to only 1 side of the quote)
 # what about virtual.Long and virtual.Short portfolios ? If we mark them to bid and ask, will Virtial PnL == Actual PnL ? This depends on how bids/asks are calculated for crosses !
@@ -29,6 +29,8 @@
     if(!is.null(dargs$symbol)) {symbol<-dargs$symbol} else symbol=NULL
     if(!is.null(dargs$prefer)) {prefer<-dargs$prefer} else prefer=NULL
     if(is.null(Prices)){
+		print(paste('updatePosPL', Symbol,typeof(Prices),nrow(Prices), prefer, sep="|"))
+		logdebug(paste('inside updatePosPL, prefer=',prefer))
         prices=getPrice(get(Symbol, pos=env), symbol=symbol, prefer=prefer)[,1] # THIS IS WHERE WE CAN MARK TO BID or ASK !!! TO BE CHANGED
     } else {
         prices=Prices
@@ -73,9 +75,9 @@
     if(ncol(prices)>1) prices=getPrice(Prices,Symbol) #  THIS DOESNT APPLY - WE'VE SELECT ONLY 1 COLUMN in line 32
     
 	# line up Prices dates with Dates set/index/span passed in.
-	startDate = first(Dates) # 20191007 - this has 0 offset in my code. In standard code offset is 0.00001 - WHY ?
+	startDate = xts::first(Dates) # 20191007 - this has 0 offset in my code. In standard code offset is 0.00001 - WHY ?
 	#does this need to be a smaller/larger delta for millisecond data?
-	endDate   = last(Dates)
+	endDate   = xts::last(Dates)
 	if(is.na(endDate)) endDate<-NULL
 	dateRange = paste(startDate,endDate,sep='::')
 	
@@ -83,7 +85,7 @@
 	Prices<-prices[dateRange]
 
   if(nrow(Prices)<1) {
-      Prices=xts(cbind(Prices=as.numeric(last(prices[paste('::',endDate,sep='')]))),as.Date(endDate))
+      Prices=xts(cbind(Prices=as.numeric(xts::last(prices[paste('::',endDate,sep='')]))),as.Date(endDate))
       warning('no Prices available for ',Symbol,' in ',dateRange,' : using last available price and marking to ', endDate)
   }
 	
@@ -94,7 +96,7 @@
 	#	***** Vectorization *****#
 	# trim posPL slot to not double count, related to bug 831 on R-Forge 
 	Portfolio$symbols[[Symbol]]$posPL<-window(Portfolio$symbols[[Symbol]]$posPL, end = startDate)
-	priorPL<-last(Portfolio$symbols[[Symbol]]$posPL)
+	priorPL<-xts::last(Portfolio$symbols[[Symbol]]$posPL)
 	if(nrow(priorPL)==0) {
 		cn<-colnames(priorPL)
 		order.by.tmp = startDate;
@@ -113,7 +115,7 @@
 	{
 		# if there are no transactions, get the last one before the current dateRange, we'll discard later
 		if(nrow(Txns)==0) {
-			Txns <- last(window(Portfolio$symbols[[Symbol]]$txn , end = startDate))
+			Txns <- xts::last(window(Portfolio$symbols[[Symbol]]$txn , end = startDate))
 			if(nrow(Txns)==0) { # last resort - fill all Txns with zeros
 				cn<-colnames(Txns);
 				Txns <- xts(t(rep(0,ncol(Txns))),order.by=c(startDate))
@@ -127,7 +129,7 @@
 			tmpEndDate<-if(is.null(endDate)||is.na(endDate)) {max(index(Txns))
 			} else endDate;
 				
-			Prices=xts(cbind(Prices=as.numeric(last( window( prices, end = tmpEndDate)))),as.Date(tmpEndDate))
+			Prices=xts(cbind(Prices=as.numeric(xts::last( window( prices, end = tmpEndDate)))),as.Date(tmpEndDate))
 			warning('no Prices available for ',Symbol,' in ',dateRange,' : using last available price and marking to ', endDate)
 		}
 		
@@ -152,7 +154,7 @@
 		
 		if(is.na(tmpPL[1,'Prices'])){
 			#first price is NA, it would be nice to fill it in with a previous last valid price
-			fprice <- last( window(prices, end = startDate))
+			fprice <- xts::last( window(prices, end = startDate))
 			if (length(fprice)==1) tmpPL[1,'Prices'] <- fprice 
 					# if there's no previous valid price, calculate it from the prior position value
 					# (can occur if .updatePosPL is called repeatedly with only one date/price)
@@ -298,7 +300,7 @@
       {
         tmpEndDate<-if(is.null(endDate)||is.na(endDate)) {max(index(Txns))
         } else endDate;
-        FXrate.sub=xts(cbind(last(window(FXrate, end = tmpEndDate))),as.Date(tmpEndDate))
+        FXrate.sub=xts(cbind(xts::last(window(FXrate, end = tmpEndDate))),as.Date(tmpEndDate))
         warning('no FXrate available for ',FXrate.str,' in ',dateRange,' : using last available price and marking to ', endDate)	
       }				
       # hopefully this works. Same column name that got us Prices will get us correct CcyMult. Which side of quote MT4 marks USD conversion to?
