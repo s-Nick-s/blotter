@@ -18,7 +18,7 @@
 #' a positive integer, or followed by "s".
 #' @param \dots any other passthrough parameters
 #' @export
-updatePortf <- function(Portfolio, Symbols=NULL, Dates=NULL, Prices=NULL, Interval=Interval, ...)
+updatePortf <- function(Portfolio, colName, Symbols=NULL, Dates=NULL, Prices=NULL, Interval=Interval, ...)
 { #' @author Peter Carl, Brian Peterson
      pname<-Portfolio
      Portfolio<-.getPortfolio(pname) # TODO add Date handling
@@ -30,7 +30,7 @@ updatePortf <- function(Portfolio, Symbols=NULL, Dates=NULL, Prices=NULL, Interv
      }
      for(symbol in Symbols){
        # tmp_instr<-try(getInstrument(symbol), silent=TRUE) - WHY IS IT THERE ?
-       .updatePosPL(Portfolio=pname, Symbol=as.character(symbol), Dates=Dates, Prices=Prices, Interval=Interval, virtual = is.virtual,  ...=...)
+       .updatePosPL(Portfolio=pname, Symbol=as.character(symbol), Dates=Dates, Prices=Prices, Interval=Interval, virtual = is.virtual, prefer = colName, ...=...)
      }
      
      # Calculate and store portfolio summary table

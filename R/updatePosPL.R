@@ -12,7 +12,7 @@
 #' @return Regular time series of position information and PL 
 #' @author Peter Carl, Brian Peterson
 #' @rdname updatePosPL
-.updatePosPL <- function(Portfolio, Symbol, Dates=NULL, Prices=NULL, ClientId=0, Interval=NULL, virtual = FALSE ,  ...)
+.updatePosPL <- function(Portfolio, Symbol, Dates=NULL, Prices=NULL, ClientId=0, Interval=NULL, virtual = FALSE , prefer="Price",  ...)
 # 20150721
 # TO MARK TO BID OR ASK, pass symbol argument = "bid" or "ask". This CAN be done, because our Portfolios are only long or short (e.g. all portfolio should be marked to only 1 side of the quote)
 # what about virtual.Long and virtual.Short portfolios ? If we mark them to bid and ask, will Virtial PnL == Actual PnL ? This depends on how bids/asks are calculated for crosses !
@@ -27,9 +27,9 @@
     dargs <- list(...)
     if(!is.null(dargs$env)) {env <- dargs$env} else env=.GlobalEnv
     if(!is.null(dargs$symbol)) {symbol<-dargs$symbol} else symbol=NULL
-    if(!is.null(dargs$prefer)) {prefer<-dargs$prefer} else prefer=NULL
+    #if(!is.null(dargs$prefer)) {prefer<-dargs$prefer} else prefer=NULL
     if(is.null(Prices)){
-        prices=getPrice(get(Symbol, pos=env), symbol=symbol, prefer=prefer)[,1] # THIS IS WHERE WE CAN MARK TO BID or ASK !!! TO BE CHANGED
+    prices=getPrice(get(Symbol, pos=env), symbol=symbol, prefer=prefer)[,1] # THIS IS WHERE WE CAN MARK TO BID or ASK !!! TO BE CHANGED
     } else {
         prices=Prices
     }
@@ -94,7 +94,7 @@
 	#	***** Vectorization *****#
 	# trim posPL slot to not double count, related to bug 831 on R-Forge 
 	Portfolio$symbols[[Symbol]]$posPL<-window(Portfolio$symbols[[Symbol]]$posPL, end = startDate)
-	priorPL<-last(Portfolio$symbols[[Symbol]]$posPL)
+	priorPL<-xts::last(Portfolio$symbols[[Symbol]]$posPL)
 	if(nrow(priorPL)==0) {
 		cn<-colnames(priorPL)
 		order.by.tmp = startDate;
