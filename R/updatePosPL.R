@@ -29,7 +29,7 @@
     if(!is.null(dargs$symbol)) {symbol<-dargs$symbol} else symbol=NULL
     #if(!is.null(dargs$prefer)) {prefer<-dargs$prefer} else prefer=NULL
     if(is.null(Prices)){
-    prices=getPrice(get(Symbol, pos=env), symbol=symbol, prefer=prefer)[,1] # THIS IS WHERE WE CAN MARK TO BID or ASK !!! TO BE CHANGED
+        prices=getPrice(get(Symbol, pos=env), symbol=symbol, prefer=prefer)[,1] # THIS IS WHERE WE CAN MARK TO BID or ASK !!! TO BE CHANGED
     } else {
         prices=Prices
     }
@@ -76,6 +76,7 @@
 	startDate = first(Dates) # 20191007 - this has 0 offset in my code. In standard code offset is 0.00001 - WHY ?
 	#does this need to be a smaller/larger delta for millisecond data?
 	endDate   = last(Dates) + .001
+	
 	if(is.na(endDate)) endDate<-NULL
 	dateRange = paste(startDate,endDate,sep='::')
 	
@@ -83,7 +84,7 @@
 	Prices<-prices[dateRange]
 
   if(nrow(Prices)<1) {
-      Prices=xts(cbind(Prices=as.numeric(last(prices[paste('::',endDate,sep='')]))),as.Date(endDate))
+      Prices=xts(cbind(Prices=as.numeric(xts::last(prices[paste('::',endDate,sep='')]))),as.Date(endDate))
       warning('no Prices available for ',Symbol,' in ',dateRange,' : using last available price and marking to ', endDate)
   }
 	
@@ -113,7 +114,7 @@
 	{
 		# if there are no transactions, get the last one before the current dateRange, we'll discard later
 		if(nrow(Txns)==0) {
-			Txns <- last(window(Portfolio$symbols[[Symbol]]$txn , end = startDate))
+			Txns <- xts::last(window(Portfolio$symbols[[Symbol]]$txn , end = startDate))
 			if(nrow(Txns)==0) { # last resort - fill all Txns with zeros
 				cn<-colnames(Txns);
 				Txns <- xts(t(rep(0,ncol(Txns))),order.by=c(startDate))
@@ -127,7 +128,7 @@
 			tmpEndDate<-if(is.null(endDate)||is.na(endDate)) {max(index(Txns))
 			} else endDate;
 				
-			Prices=xts(cbind(Prices=as.numeric(last( window( prices, end = tmpEndDate)))),as.Date(tmpEndDate))
+			Prices=xts(cbind(Prices=as.numeric(xts::last( window( prices, end = tmpEndDate)))),as.Date(tmpEndDate))
 			warning('no Prices available for ',Symbol,' in ',dateRange,' : using last available price and marking to ', endDate)
 		}
 		
@@ -152,7 +153,7 @@
 		
 		if(is.na(tmpPL[1,'Prices'])){
 			#first price is NA, it would be nice to fill it in with a previous last valid price
-			fprice <- last( window(prices, end = startDate))
+			fprice <- xts::last( window(prices, end = startDate))
 			if (length(fprice)==1) tmpPL[1,'Prices'] <- fprice 
 					# if there's no previous valid price, calculate it from the prior position value
 					# (can occur if .updatePosPL is called repeatedly with only one date/price)
@@ -298,7 +299,7 @@
       {
         tmpEndDate<-if(is.null(endDate)||is.na(endDate)) {max(index(Txns))
         } else endDate;
-        FXrate.sub=xts(cbind(last(window(FXrate, end = tmpEndDate))),as.Date(tmpEndDate))
+        FXrate.sub=xts(cbind(xts::last(window(FXrate, end = tmpEndDate))),as.Date(tmpEndDate))
         warning('no FXrate available for ',FXrate.str,' in ',dateRange,' : using last available price and marking to ', endDate)	
       }				
       # hopefully this works. Same column name that got us Prices will get us correct CcyMult. Which side of quote MT4 marks USD conversion to?
