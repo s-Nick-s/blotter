@@ -75,7 +75,7 @@
 	# line up Prices dates with Dates set/index/span passed in.
 	startDate = first(Dates) # 20191007 - this has 0 offset in my code. In standard code offset is 0.00001 - WHY ?
 	#does this need to be a smaller/larger delta for millisecond data?
-	endDate   = last(Dates)
+	endDate   = last(Dates) + .001
 	if(is.na(endDate)) endDate<-NULL
 	dateRange = paste(startDate,endDate,sep='::')
 	
