@@ -51,9 +51,11 @@
 initAcct <- function(name='default', portfolios, initDate="1950-01-01", initEq=0, currency='USD', ...)
 { # @author Peter Carl
 
-    if(exists(paste("account",name,sep='.'), envir=.blotter,inherits=TRUE)) 
-        stop("Account ", name, " already exists, use updateAcct() or create a new account.")
-    
+    if(exists(paste("account",name,sep='.'), envir=.blotter,inherits=TRUE)) { 
+        warning(paste("Account ", name, " already exists, re-initializing it"), call.=FALSE);
+		rm(list=c(paste("account",name,sep='.')), envir=.blotter,inherits=TRUE);
+	}
+	
     # FUNCTION
     account=list()
     account$portfolios=vector("list",length=length(portfolios))
