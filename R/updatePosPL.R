@@ -236,8 +236,8 @@
 			    TmpPeriods$Gross.Trading.PL <-  TmpPeriods$Period.Realized.PL + TmpPeriods$Period.Unrealized.PL
 			    TmpPeriods$Net.Trading.PL <- TmpPeriods$Gross.Trading.PL - TmpPeriods$Txn.Fees
 
-			    TmpPeriods$Net.Trading.PL <- na.fill(TmpPeriods$Net.Trading.PL, 0)
-			    TmpPeriods$Gross.Trading.PL <-  na.fill(TmpPeriods$Gross.Trading.PL, 0)
+			    TmpPeriods$Net.Trading.PL[is.na(TmpPeriods$Net.Trading.PL)] <- 0
+			    TmpPeriods$Gross.Trading.PL[is.na(TmpPeriods$Gross.Trading.PL)] <-  0
 			    TmpPeriods$helperSeries <- NULL
 			  }
 				  # this seems redundant in currency-pair portfolios
