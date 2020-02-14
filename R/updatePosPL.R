@@ -213,7 +213,7 @@
 			# now do the currency conversions for the whole date range
 			TmpPeriods<-tmpPL#Portfolio$symbols[[Symbol]]$posPL[dateRange]
 			
-			CcyMult <- .getCCyMult(Portfolio, tmp_instr, p.ccy.str, index(TmpPeriods), dateRange, ...)
+			CcyMult <- .getCCyMult(Portfolio, tmp_instr, p.ccy.str, index(TmpPeriods), dateRange, prefer, ...)
 			
 			if (length(CcyMult)==1 && CcyMult==1){
 			  Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]] <- Portfolio[['symbols']][[Symbol]][['posPL']]
@@ -259,7 +259,7 @@
   #assign( paste("portfolio",pname,sep='.'), Portfolio, envir=.blotter )
 }
 
-.getCCyMult <- function(Portfolio, tmp_instr, p.ccy.str, targetIdx, dateRange, ...) {
+.getCCyMult <- function(Portfolio, tmp_instr, p.ccy.str, targetIdx, dateRange, prefer, ...) {
   CcyMult = NA 
   FXrate = NA
   invert=FALSE
@@ -305,7 +305,7 @@
       # hopefully this works. Same column name that got us Prices will get us correct CcyMult. Which side of quote MT4 marks USD conversion to?
       if(ncol(FXrate.sub)>1) 
       {
-        CcyMult <- getPrice(FXrate.sub,...)
+        CcyMult <- getPrice(FXrate.sub, prefer = prefer, ...)
       }	else {
         CcyMult <- FXrate.sub
       }
