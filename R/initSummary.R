@@ -4,8 +4,8 @@
 #' @rdname initSummary
 .initSummary <- function(initDate="1950-01-01",...)
 { # @author Brian Peterson
-    summary <- xts( as.matrix(t(rep(0,6))), order.by=as.POSIXct(initDate,...=...), ...=... )
-    colnames(summary) <- c('Net.Value',  'Realized.PL', 'Unrealized.PL', 'Gross.Trading.PL', 'Txn.Fees', 'Net.Trading.PL')
+    summary <- xts( as.matrix(t(rep(0,7))), order.by=as.POSIXct(initDate,...=...), ...=... )
+    colnames(summary) <- c('Net.Value',  'Realized.PL', 'Unrealized.PL', 'Gross.Trading.PL', 'Txn.Fees', 'Net.Trading.PL', 'Traded.Volume')
     class(summary)<-c("portfolio_summary",class(summary))
     return(summary)
 }

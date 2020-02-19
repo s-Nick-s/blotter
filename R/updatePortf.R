@@ -18,7 +18,7 @@
 #' a positive integer, or followed by "s".
 #' @param \dots any other passthrough parameters
 #' @export
-updatePortf <- function(Portfolio, colName, Symbols=NULL, Dates=NULL, Prices=NULL, Interval=Interval, ...)
+updatePortf <- function(Portfolio, colName, isLong, Symbols=NULL, Dates=NULL, Prices=NULL, Interval=Interval, ...)
 { #' @author Peter Carl, Brian Peterson
      pname<-Portfolio
      Portfolio<-.getPortfolio(pname) # TODO add Date handling
@@ -51,13 +51,14 @@ updatePortf <- function(Portfolio, colName, Symbols=NULL, Dates=NULL, Prices=NUL
 		}
 	 }
      #Symbols = ls(Portfolio$symbols)
-     Attributes = c('Net.Value',  'Period.Realized.PL', 'Period.Unrealized.PL', 'Gross.Trading.PL', 'Txn.Fees', 'Net.Trading.PL')
+     Attributes = c('Net.Value',  'Period.Realized.PL', 'Period.Unrealized.PL',
+                    'Gross.Trading.PL', 'Txn.Fees', 'Net.Trading.PL', 'Traded.Volume')
      summary = NULL
      tmp.attr=NULL
      for(attribute in Attributes) {
        result=NULL
        switch(attribute,
-              Net.Value =,{
+              Net.Value = {
                 # all these use Pos.Value
                 if(is.null(tmp.attr)){
                   table = .getBySymbol(Portfolio = Portfolio, Attribute = "Pos.Value", Dates = Dates, Symbols = Symbols, native = is.virtual)
@@ -73,6 +74,15 @@ updatePortf <- function(Portfolio, colName, Symbols=NULL, Dates=NULL, Prices=NUL
                 table = .getBySymbol(Portfolio = Portfolio, Attribute = attribute, Dates = Dates, Symbols = Symbols, native = is.virtual)
                 tmp.attr = NULL
                 result = xts(rowSums(table, na.rm=TRUE), order.by=index(table))
+              },
+              Traded.Volume = {
+                table = .getBySymbol(Portfolio = Portfolio, Attribute = 'Txn.Value', Dates = Dates, Symbols = Symbols, native = is.virtual)
+                if(isLong) {
+                  table[table < 0] <- 0 #keep only positive for long
+                } else {
+                  table[table > 0] <- 0 #keep only negative for short
+                }
+                result = xts(cumsum(rowSums(table, na.rm=TRUE)), order.by=index(table))
               }
        )
        
@@ -92,7 +102,7 @@ updatePortf <- function(Portfolio, colName, Symbols=NULL, Dates=NULL, Prices=NUL
        cLast <- c('Net.Value')
        lastCols <- summary.dups[which(ds),cLast]
        # sum values
-       cSums <- c('Period.Realized.PL', 'Period.Unrealized.PL', 'Gross.Trading.PL', 'Txn.Fees', 'Net.Trading.PL')
+       cSums <- c('Period.Realized.PL', 'Period.Unrealized.PL', 'Gross.Trading.PL', 'Txn.Fees', 'Net.Trading.PL', 'Traded.Volume')
        # take cumulative sum; keep last value for each duplicate
        sumCols <- cumsum(summary.dups[,cSums])[which(ds),cSums]
        # subtract previous value from current value, since we used cumsum
