@@ -96,9 +96,11 @@ updateAcct <- function(name='default', Dates=NULL)
       on=periodicity(table)$units
     else
       on="none"
-
+    
     # Now aggregate the portfolio information into the $summary slot
-    Attributes = c('Additions', 'Withdrawals', 'Realized.PL', 'Unrealized.PL', 'Interest', 'Gross.Trading.PL', 'Txn.Fees', 'Net.Trading.PL', 'Advisory.Fees', 'Net.Performance', 'End.Eq')
+    Attributes = c('Additions', 'Withdrawals', 'Realized.PL', 'Unrealized.PL', 'Interest', 'Gross.Trading.PL', 'Txn.Fees',
+                   'Net.Trading.PL', 'Advisory.Fees', 'Net.Performance', 'End.Eq',
+                   'Net.Value', 'Abs.Traded.Volume')
 
     for(Attribute in Attributes) {
         switch(Attribute,
@@ -106,6 +108,7 @@ updateAcct <- function(name='default', Dates=NULL)
             Unrealized.PL = ,
             Gross.Trading.PL = ,
             Txn.Fees = ,
+            Net.Value = ,
             Net.Trading.PL = {
                 table = .getByPortf(Account, Attribute, Dates)
                 result = xts(rowSums(table,na.rm=TRUE),order.by=index(table))
@@ -145,6 +148,10 @@ updateAcct <- function(name='default', Dates=NULL)
             End.Eq = { 
                 ## TODO no cash handling for now, add this in later, but for now, zeroes 
                 result = xts(rep(0,obsLength),order.by=obsDates)
+            },
+            Abs.Traded.Volume = {
+              table = abs(.getByPortf(Account, 'Traded.Volume', Dates))
+              result = xts(rowSums(table,na.rm=TRUE),order.by=index(table))
             }
         )
         

@@ -60,8 +60,10 @@ initAcct <- function(name='default', portfolios, initDate="1950-01-01", initEq=0
     account=list()
     account$portfolios=vector("list",length=length(portfolios))
     names(account$portfolios)=portfolios
-    account$summary = xts( as.matrix(t(c(0,0,0,0,0,0,0,0,0,0,initEq))), order.by=as.POSIXct(initDate,...=...), ...=... )
-    colnames(account$summary) = c('Additions', 'Withdrawals', 'Realized.PL', 'Unrealized.PL', 'Interest', 'Gross.Trading.PL', 'Txn.Fees', 'Net.Trading.PL', 'Advisory.Fees', 'Net.Performance', 'End.Eq')
+    account$summary = xts( as.matrix(t(c(0,0,0,0,0,0,0,0,0,0,initEq,0,0))), order.by=as.POSIXct(initDate,...=...), ...=... )
+    colnames(account$summary) = c('Additions', 'Withdrawals', 'Realized.PL', 'Unrealized.PL', 'Interest', 'Gross.Trading.PL',
+                                  'Txn.Fees', 'Net.Trading.PL', 'Advisory.Fees', 'Net.Performance', 'End.Eq',
+                                  'Net.Value', 'Abs.Traded.Volume')
     
     # track capital additions, withdrawals, and interest
     account$Additions = xts( as.matrix(t(c(0))), order.by=as.POSIXct(initDate,...=...), ...=... )
