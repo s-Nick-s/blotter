@@ -9,14 +9,16 @@
 #' @rdname calcPosAvgCost
 .calcPosAvgCost <- function(PrevPosQty, PrevPosAvgCost, TxnValue, PosQty, ConMult=1)
 { # @author Peter Carl
+# with this change we can use PosAvgCost for outstanding position to calc Unrealized PnL
     if(PosQty == 0)
         PosAvgCost = 0
-    else if(abs(PrevPosQty) > abs(PosQty)){
+   # else if(abs(PrevPosQty) > abs(PosQty)){
         # position is decreasing, pos avg cost for the open position remains the same
-        PosAvgCost = PrevPosAvgCost   
-    } else {
+   #     PosAvgCost = PrevPosAvgCost   
+    #} else {
+    else 
         PosAvgCost = (PrevPosQty * PrevPosAvgCost * ConMult + TxnValue)/(PosQty*ConMult)
-    }
+    #}
     return(PosAvgCost)
 }
 

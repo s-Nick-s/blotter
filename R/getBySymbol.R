@@ -35,7 +35,7 @@
     if(is.null(Symbols))
         symbols=ls(Portfolio$symbols)
     else
-        symbols = Symbols
+        symbols = Symbols[Symbols %in% names(Portfolio$symbols)]
     
     for (symbol in symbols) {
         tmp_col = Portfolio$symbols[[symbol]][[namePosPL]][,Attribute,drop=FALSE]
@@ -43,8 +43,11 @@
         else table = merge(table, tmp_col)
     }
     if(length(table) > 0) colnames(table) = symbols
-    class(table)<-class(xts())
-    table = table[Dates]
+    
+    if(!is.null(table)) {
+      class(table)<-class(xts())
+      table = table[Dates]
+    }
 ### TODO: NA fill like getByPortfolio	- Values are forward filled. Other columns are filled with nulls. IS THAT CORRECT ?
 	if(Attribute == "Pos.Value" )
 	{
@@ -53,7 +56,7 @@
 		table[1,] = zerofill(table[1,]);
 		if(NROW(table) > 1) 
             table = na.locf(table)
-	} else { # all PnL-related columns
+	} else if(!is.null(table)) { # all PnL-related columns
 		table = zerofill(table)
 	}
     return(table)

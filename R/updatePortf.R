@@ -121,6 +121,11 @@ updatePortf <- function(Portfolio, colName, isLong, Symbols=NULL, Dates=NULL, Pr
 	 # logerror(paste('updating portfolio: ',pname,'\nDates = ',capture.output(Dates),'\nstartDate = ',startDate,'\ntrimmed Portfolio.summary:\n',
 		#capture.output(Portfolio$summary[paste('::',format(as.POSIXct(startDate, origin = default.origin)),sep='')]),'\nnew summary:\n',capture.output(summary),'\n',sep=""))
      # trim summary slot to not double count, related to bug 831 on R-Forge, and rbind new summary
+     
+     #needed for swap
+     attr(summary, 'is.virtual') <- is.virtual
+     attr(summary, 'isLong') <- isLong
+     
      if( as.POSIXct(attr(Portfolio,'initDate'))>=startDate || length(Portfolio$summary)==0 ){
        Portfolio$summary<-summary #changes to subset might not return a empty dimnames set of columns
      }else{
