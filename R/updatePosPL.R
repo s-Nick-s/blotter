@@ -207,7 +207,7 @@
 			if(inherits(tmp_instr,"try-error") | !is.instrument(tmp_instr)){
 				warning(paste("Instrument",Symbol," not found, things may break"))
 				tmp_instr<-list(currency="USD",multiplier=1)
-			}
+			}			
 			Portfolio$symbols[[Symbol]][[paste('posPL',p.ccy.str,sep='.')]]<-window(Portfolio$symbols[[Symbol]][[paste('posPL',p.ccy.str,sep='.')]], end= startDate); # USD-denominated PnLs aren't updated or used for virtual portfolios
 		
 			# now do the currency conversions for the whole date range
@@ -310,7 +310,6 @@
         CcyMult <- FXrate.sub
       }
       
-      targetIdx <- targetIdx[!duplicated(targetIdx)]
       CcyMult <- na.locf(merge(CcyMult, targetIdx))
       CcyMult <- na.locf(CcyMult, fromLast = T)
       CcyMult <- CcyMult[targetIdx]
