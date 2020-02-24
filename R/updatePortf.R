@@ -82,7 +82,7 @@ updatePortf <- function(Portfolio, colName, isLong, Symbols=NULL, Dates=NULL, Pr
                 } else {
                   table[table > 0] <- 0 #keep only negative for short
                 }
-                result = xts(cumsum(rowSums(table, na.rm=TRUE)), order.by=index(table))
+                result = xts(rowSums(table, na.rm=TRUE), order.by=index(table))
               }
        )
        
