@@ -4,7 +4,7 @@
 #' @param name  string identifying account
 #' @param Dates Dates from which to calculate equity account
 #' @export
-updateAcct <- function(name='default', Dates=NULL) 
+updateAcct <- function(name='default', Dates=NULL, swapTime = NULL) 
 { # @author Peter Carl
 
     Account<-getAccount(name)
@@ -160,11 +160,52 @@ updateAcct <- function(name='default', Dates=NULL)
         else {summary=cbind(summary,result)}
     }
     summary[is.na(summary)] <- 0 # replace any NA's with zero
-    Account$summary <- rbind(Account$summary, summary)
     # This function does not calculate End.Eq 
     
+    #SWAP CALCULATION
+    allInstruments <- instrument.table()[, c("swap_long", "swap_short", "lot_size")]
+    allInstruments <- allInstruments[allInstruments$swap_long != "NULL" &
+                                       allInstruments$swap_short != "NULL" &
+                                       allInstruments$lot_size != "NULL", ]
+    if(!is.null(swapTime) && nrow(allInstruments) > 0) {
+      swapDates <- Dates[as.Date(Dates) > as.Date(swapTime)]
+      if(length(swapDates) > 0) {
+        swapDays <- as.Date(swapDates)
+        swapSyms <- rownames(allInstruments)
+        posQtys <- lapply(Portfolios, function(pname) {
+          Portfolio <- getPortfolio(pname)
+          .getBySymbol(Portfolio, 'Pos.Qty', Dates = swapDates, Symbols = swapSyms, native = attr(Portfolio$summary, 'is.virtual'))
+        })
+        names(posQtys) <- Portfolios
+        posIsLongShort <- vapply(Portfolios, function(pname) attr(getPortfolio(pname)$summary, 'isLong'), FUN.VALUE = logical(1))
+        
+        posSwap <- lapply(swapSyms, function(ssym) {
+          pQData <- lapply(seq_along(posQtys), function(i) {
+            pQ <- posQtys[[i]]
+            if(ssym %in% names(pQ)) {
+              swapPosIdx <- !duplicated(as.Date(index(pQ)))
+              swapValue <- ifelse(posIsLongShort[i], allInstruments[ssym, 'swap_long'], allInstruments[ssym, 'swap_short'])
+              (pQ[!duplicated(as.Date(index(pQ))), ssym]/as.numeric(allInstruments[ssym, 'lot_size'])) * as.numeric(swapValue) #swap formula
+            } else {
+              NULL
+            }
+          })
+          .mergeAndFillXtsList(pQData)
+        })
+        summary$Interest <- NULL
+        summary$Interest <- .mergeAndFillXtsList(posSwap)
+        summary$Interest[is.na(summary$Interest)] <- 0
+      }
+    }
+    Account$summary <- rbind(Account$summary, summary[, colnames(Account$summary)])
     assign(paste("account",name,sep='.'),Account, envir=.blotter) 
     return(name) #not sure this is a good idea
+}
+
+#helper function for swap claclulation
+.mergeAndFillXtsList <- function(lst, fill = 0) {
+  lst <- Reduce(function(x, y) merge.xts(x, y, fill = fill), lst)
+  xts(rowSums(lst), order.by = index(lst))
 }
 
 ###############################################################################
