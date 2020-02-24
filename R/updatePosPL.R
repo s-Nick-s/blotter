@@ -130,6 +130,8 @@
 				
 			Prices=xts(cbind(Prices=as.numeric(xts::last( window( prices, end = tmpEndDate)))),as.Date(tmpEndDate))
 			warning('no Prices available for ',Symbol,' in ',dateRange,' : using last available price and marking to ', endDate)
+			if(nrow(Prices)<1)
+				return()
 		}
 		
 		# Prices <- Prices[dateRange][,1] # only take the first column, if there is more than one
