@@ -29,7 +29,7 @@
     if(!is.null(dargs$symbol)) {symbol<-dargs$symbol} else symbol=NULL
     #if(!is.null(dargs$prefer)) {prefer<-dargs$prefer} else prefer=NULL
     if(is.null(Prices)){
-        prices=getPrice(get(Symbol, pos=env), symbol=symbol, prefer=prefer)[,1] # THIS IS WHERE WE CAN MARK TO BID or ASK !!! TO BE CHANGED
+        prices=getPrice(.getPriceData(Symbol, pos=env), symbol=symbol, prefer=prefer)[,1] # THIS IS WHERE WE CAN MARK TO BID or ASK !!! TO BE CHANGED
     } else {
         prices=Prices
     }
@@ -274,21 +274,21 @@
         warning("Currency",p.ccy.str," not found, using currency multiplier of 1")
         CcyMult<-1
       } else { #convert from instr ccy to portfolio ccy
-        FXrate.str<-paste(tmp_instr$currency, p.ccy.str, sep='') # currency quote convention is EURUSD which reads as "USD per EUR" or "EUR quoted in USD"
-        FXrate<-try(get(FXrate.str), silent=TRUE)
+        currency =getInstrument(tmp_instr$currency)
+        if(currency$counter_currency==p.ccy.str) # EUR etc
+	FXrate.str<-paste(tmp_instr$currency, p.ccy.str, sep='')
+       else  { # JPY etc
+	FXrate.str<-paste(p.ccy.str, tmp_instr$currency, sep='')   
+	invert=TRUE
+        }
+         # currency quote convention is EURUSD which reads as "USD per EUR" or "EUR quoted in USD"
+        FXrate<-try(.getPriceData(FXrate.str, pos=.GlobalEnv), silent=TRUE)
         #TODO FIXME: this uses convention to sort out the rate, we should check $currency and $counter_currency and make sure directionality is correct 
         if(inherits(FXrate,"try-error")){
-          FXrate.str<-paste(p.ccy.str, tmp_instr$currency, sep='')
-          FXrate<-try(get(FXrate.str), silent=TRUE)
-          if(inherits(FXrate,"try-error")){ 
             warning("Exchange Rate",FXrate.str," not found for symbol,',Symbol,' using currency multiplier of 1")
             CcyMult<-1
-          } else {
-            invert=TRUE
-          }
         }
       }		
-      
     }
   } else {
     message("no currency set on portfolio, using currency multiplier of 1")
@@ -352,6 +352,18 @@
     list(on=dt, k=rpf)
 }
 
+.getPriceData<-function(Symbol, pos=.GlobalEnv){
+	prices1 = get(Symbol, pos)
+	if(exists("last.prices", envir=pos)){
+		last.prices.loc= get("last.prices",pos=pos)
+		if(Symbol %in% ls(last.prices.loc)){
+			prices2 = last.prices.loc[[Symbol]]
+			prices1 = rbind(prices1, prices2)
+			prices1=make.index.unique(prices1, drop=T, fromLast=T)
+		}
+	}
+	return(prices1)
+}
 ###############################################################################
 # Blotter: Tools for transaction-oriented trading systems development
 # for R (see http://r-project.org/) 
