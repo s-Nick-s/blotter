@@ -190,7 +190,11 @@ updateAcct <- function(name='default', Dates=NULL, swapTime = NULL)
               NULL
             }
           })
-          .mergeAndFillXtsList(pQData)
+          if(!all(sapply(pQData, is.null))) {
+            .mergeAndFillXtsList(pQData)
+          } else {
+            NULL
+          }
         })
         summary$Interest <- NULL
         summary$Interest <- .mergeAndFillXtsList(posSwap)
@@ -205,7 +209,7 @@ updateAcct <- function(name='default', Dates=NULL, swapTime = NULL)
 #helper function for swap claclulation
 .mergeAndFillXtsList <- function(lst, fill = 0) {
   lst <- Reduce(function(x, y) merge.xts(x, y, fill = fill), lst)
-  xts(rowSums(lst), order.by = index(lst))
+  xts(rowSums(lst, na.rm = T), order.by = index(lst))
 }
 
 ###############################################################################
