@@ -4,7 +4,7 @@
 #' @param name  string identifying account
 #' @param Dates Dates from which to calculate equity account
 #' @export
-updateAcct <- function(name='default', Dates=NULL, swapTime = NULL) 
+updateAcct <- function(name='default', Dates=NULL, swapTime = NULL, swapUTC = '21:00:00') 
 { # @author Peter Carl
 
     Account<-getAccount(name)
@@ -163,14 +163,15 @@ updateAcct <- function(name='default', Dates=NULL, swapTime = NULL)
     # This function does not calculate End.Eq 
     
     #SWAP CALCULATION
-    allInstruments <- instrument.table()[, c("swap_long", "swap_short", "lot_size")]
+    allInstruments <- instrument.table()[, c("swap_long", "swap_short", "lot_size", 'swap_type',
+                                             'currency', 'counter_currency', 'tick_size')]
     allInstruments <- allInstruments[allInstruments$swap_long != "NULL" &
                                        allInstruments$swap_short != "NULL" &
                                        allInstruments$lot_size != "NULL", ]
     if(!is.null(swapTime) && nrow(allInstruments) > 0) {
+      swapTime <- as.POSIXct(format(swapTime, sprintf("%%Y-%%m-%%d %s", swapUTC)), tz = attr(summary, 'tzone'))
       swapDates <- Dates[as.Date(Dates) > as.Date(swapTime)]
       if(length(swapDates) > 0) {
-        swapDays <- as.Date(swapDates)
         swapSyms <- rownames(allInstruments)
         posQtys <- lapply(Portfolios, function(pname) {
           Portfolio <- getPortfolio(pname)
@@ -184,10 +185,47 @@ updateAcct <- function(name='default', Dates=NULL, swapTime = NULL)
             pQ <- posQtys[[i]]
             if(ssym %in% names(pQ)) {
               swapPosIdx <- !duplicated(as.Date(index(pQ)))
-              swapValue <- ifelse(posIsLongShort[i], allInstruments[ssym, 'swap_long'], allInstruments[ssym, 'swap_short'])
-              (pQ[!duplicated(as.Date(index(pQ))), ssym]/as.numeric(allInstruments[ssym, 'lot_size'])) * as.numeric(swapValue) #swap formula
+              swapRate <- as.numeric(ifelse(posIsLongShort[i], allInstruments[ssym, 'swap_long'], allInstruments[ssym, 'swap_short']))
+              swapType <- allInstruments[ssym, 'swap_type']
+              lostSize <- allInstruments[ssym, 'lot_size']
+              pQswap <- pQ[swapPosIdx, ssym]
+              
+              if(sum(pQswap) == 0)
+                return(NULL)
+              swapDays <- format(unique(as.Date(index(pQswap))) - 1, "%Y-%m-%d")
+              swapDays <- as.POSIXct(sprintf('%s %s', swapDays, swapUTC), tz = attr(summary, 'tzone'))
+              
+              ndays <- rep(1, length(pQswap))
+              ndays[weekdays(swapDays) == 'Wednesday'] <- 3
+              
+              posLots <- abs(as.numeric(pQswap)/as.numeric(lostSize))
+              
+              #swap formulas
+              swapVal <- switch (swapType,
+                "0" = { #swap in contra
+                  swapCurr <- allInstruments[ssym, 'currency']
+                  ticksizeMod <-  as.numeric(lostSize)*as.numeric(allInstruments[ssym, 'tick_size'])
+                  currPrice <- 1
+                  if(swapCurr != "USD")
+                    currPrice <- .getSwapPrice(swapCurr, swapDays, prefer = 'Price')
+                  ndays * posLots * swapRate * currPrice * ticksizeMod
+                },
+                "3" =, #3 is the same as 1
+                "1" = { #swap in base
+                  swapCurr <- allInstruments[ssym, 'counter_currency']
+                  currPrice <- 1
+                  if(swapCurr != "USD")
+                    currPrice <- .getSwapPrice(swapCurr, swapDays, prefer = 'Price')
+                  ndays * posLots * swapRate * currPrice
+                },
+                "2" = { #swap in Account Currency
+                  currPrice <- .getSwapPrice(allInstruments[ssym, 'counter_currency'], swapDays, prefer = 'bid')
+                  ndays * (((swapRate/100) * currPrice)/365) * posLots
+                }
+              )
+              return(xts(swapVal, order.by = swapDays))
             } else {
-              NULL
+              return(NULL)
             }
           })
           if(!all(sapply(pQData, is.null))) {
@@ -199,6 +237,7 @@ updateAcct <- function(name='default', Dates=NULL, swapTime = NULL)
         summary$Interest <- NULL
         summary$Interest <- .mergeAndFillXtsList(posSwap)
         summary$Interest[is.na(summary$Interest)] <- 0
+        summary <- na.locf(summary)
       }
     }
     Account$summary <- rbind(Account$summary, summary[, colnames(Account$summary)])
@@ -206,10 +245,16 @@ updateAcct <- function(name='default', Dates=NULL, swapTime = NULL)
     return(name) #not sure this is a good idea
 }
 
-#helper function for swap claclulation
+#helper functions for swap claclulation
 .mergeAndFillXtsList <- function(lst, fill = 0) {
   lst <- Reduce(function(x, y) merge.xts(x, y, fill = fill), lst)
   xts(rowSums(lst, na.rm = T), order.by = index(lst))
+}
+.getSwapPrice<-function(symbol, timeT, prefer = 'Price')
+{
+  vapply(timeT,
+         function(tx) coredata(tail(window(get(symbol, env=.GlobalEnv), end=timeT),1))[,prefer],
+         FUN.VALUE = numeric(1))
 }
 
 ###############################################################################
