@@ -170,63 +170,62 @@ updateAcct <- function(name='default', Dates=NULL, swapTime = NULL, swapUTC = '2
                                        allInstruments$lot_size != "NULL", ]
     if(!is.null(swapTime) && nrow(allInstruments) > 0) {
       swapTime <- as.POSIXct(format(swapTime, sprintf("%%Y-%%m-%%d %s", swapUTC)), tz = attr(summary, 'tzone'))
-      swapDates <- Dates[as.Date(Dates) > as.Date(swapTime)]
-      if(length(swapDates) > 0) {
+      if(any(Dates > min(swapTime))) {
         swapSyms <- rownames(allInstruments)
-        posQtys <- lapply(Portfolios, function(pname) {
-          Portfolio <- getPortfolio(pname)
-          .getBySymbol(Portfolio, 'Pos.Qty', Dates = swapDates, Symbols = swapSyms, native = attr(Portfolio$summary, 'is.virtual'))
-        })
-        names(posQtys) <- Portfolios
         posIsLongShort <- vapply(Portfolios, function(pname) attr(getPortfolio(pname)$summary, 'isLong'), FUN.VALUE = logical(1))
         
         posSwap <- lapply(swapSyms, function(ssym) {
-          pQData <- lapply(seq_along(posQtys), function(i) {
-            pQ <- posQtys[[i]]
-            if(ssym %in% names(pQ)) {
-              swapPosIdx <- !duplicated(as.Date(index(pQ)))
-              swapRate <- as.numeric(ifelse(posIsLongShort[i], allInstruments[ssym, 'swap_long'], allInstruments[ssym, 'swap_short']))
-              swapType <- allInstruments[ssym, 'swap_type']
-              lostSize <- allInstruments[ssym, 'lot_size']
-              pQswap <- pQ[swapPosIdx, ssym]
-              
-              if(sum(pQswap) == 0)
-                return(NULL)
-              swapDays <- format(unique(as.Date(index(pQswap))) - 1, "%Y-%m-%d")
-              swapDays <- as.POSIXct(sprintf('%s %s', swapDays, swapUTC), tz = attr(summary, 'tzone'))
-              
-              ndays <- rep(1, length(pQswap))
-              ndays[weekdays(swapDays) == 'Wednesday'] <- 3
-              
-              posLots <- abs(as.numeric(pQswap)/as.numeric(lostSize))
-              
-              #swap formulas
-              swapVal <- switch (swapType,
-                "0" = { #swap in contra
-                  swapCurr <- allInstruments[ssym, 'currency']
-                  ticksizeMod <-  as.numeric(lostSize)*as.numeric(allInstruments[ssym, 'tick_size'])
-                  currPrice <- 1
-                  if(swapCurr != "USD")
-                    currPrice <- .getSwapPrice(swapCurr, swapDays, prefer = 'Price')
-                  ndays * posLots * swapRate * currPrice * ticksizeMod
-                },
-                "3" =, #3 is the same as 1
-                "1" = { #swap in base
-                  swapCurr <- allInstruments[ssym, 'counter_currency']
-                  currPrice <- 1
-                  if(swapCurr != "USD")
-                    currPrice <- .getSwapPrice(swapCurr, swapDays, prefer = 'Price')
-                  ndays * posLots * swapRate * currPrice
-                },
-                "2" = { #swap in Account Currency
-                  currPrice <- .getSwapPrice(allInstruments[ssym, 'counter_currency'], swapDays, prefer = 'bid')
-                  ndays * (((swapRate/100) * currPrice)/365) * posLots
-                }
-              )
-              return(xts(swapVal, order.by = swapDays))
-            } else {
+          pQData <- lapply(seq_along(Portfolios), function(i) {
+            
+            portf <- getPortfolio(Portfolios[i])
+            if(!ssym %in% names(portf$symbols))
               return(NULL)
+            
+            p.ccy.str<-attr(portf,'currency')
+            if(!is.null(p.ccy.str) & !attr(Portfolio$summary, 'is.virtual')) {
+              pQ <- portf$symbols[[ssym]][[paste("posPL", p.ccy.str, sep=".")]]
+            } else {
+              pQ <- portf$symbols[[ssym]]$posPL
             }
+            
+            swapRate <- as.numeric(ifelse(posIsLongShort[i], allInstruments[ssym, 'swap_long'], allInstruments[ssym, 'swap_short']))
+            swapType <- allInstruments[ssym, 'swap_type']
+            lostSize <- allInstruments[ssym, 'lot_size']
+            pQswap <- vapply(swapTime, function(x) coredata(tail(window(pQ$Pos.Qty, end=x),1)),
+                             FUN.VALUE = numeric(1))
+            
+            if(sum(pQswap) == 0)
+              return(NULL)
+
+            ndays <- rep(1, length(pQswap))
+            ndays[weekdays(swapTime) == 'Wednesday'] <- 3
+            
+            posLots <- abs(as.numeric(pQswap)/as.numeric(lostSize))
+            
+            #swap formulas
+            swapVal <- switch (swapType,
+                               "0" = { #swap in contra
+                                 swapCurr <- allInstruments[ssym, 'currency']
+                                 ticksizeMod <-  as.numeric(lostSize)*as.numeric(allInstruments[ssym, 'tick_size'])
+                                 currPrice <- 1
+                                 if(swapCurr != "USD")
+                                   currPrice <- .getSwapPrice(swapCurr, swapTime, prefer = 'Price')
+                                 ndays * posLots * swapRate * currPrice * ticksizeMod
+                               },
+                               "3" =, #3 is the same as 1
+                               "1" = { #swap in base
+                                 swapCurr <- allInstruments[ssym, 'counter_currency']
+                                 currPrice <- 1
+                                 if(swapCurr != "USD")
+                                   currPrice <- .getSwapPrice(swapCurr, swapTime, prefer = 'Price')
+                                 ndays * posLots * swapRate * currPrice
+                               },
+                               "2" = { #swap in Account Currency
+                                 currPrice <- .getSwapPrice(allInstruments[ssym, 'counter_currency'], swapTime, prefer = 'bid')
+                                 ndays * (((swapRate/100) * currPrice)/365) * posLots
+                               }
+            )
+            return(xts(swapVal, order.by = swapTime))
           })
           if(!all(sapply(pQData, is.null))) {
             .mergeAndFillXtsList(pQData)
