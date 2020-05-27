@@ -200,12 +200,13 @@ pennyPerShare <- function(TxnQty, ...) {
 
 #' @rdname addTxn
 #' @export
-addTxns<- function(Portfolio, Symbol, TxnData , verbose=FALSE, ..., ConMult=NULL, allowRebates=FALSE, eps=1e-06)
+addTxns<- function(Portfolio, Symbol, TxnData, ..., verbose=FALSE, allowRebates=FALSE, eps=1e-06)
 {
+  
     pname <- Portfolio
     #If there is no table for the symbol then create a new one
-    if(is.null(.getPortfolio(pname)$symbols[[Symbol]]))
-        addPortfInstr(Portfolio=pname, symbols=Symbol)
+    # if(is.null(.getPortfolio(pname)$symbols[[Symbol]]))
+    #     addPortfInstr(Portfolio=pname, symbols=Symbol)
     Portfolio <- .getPortfolio(pname)
 
     TxnDate <- start(TxnData)
@@ -213,43 +214,59 @@ addTxns<- function(Portfolio, Symbol, TxnData , verbose=FALSE, ..., ConMult=NULL
     if (TxnDate < lastTxnDate) {
       stop("Transactions must be added in order. First TxnDate (", TxnDate, ") is ",
            "before last transaction in portfolio (", lastTxnDate, ") for ", Symbol)
+    } else {
+      if(TxnDate == lastTxnDate)
+      {
+        warning("Transaction timestamp (", TxnDate, ") ",
+                "equals last timestamp (", lastTxnDate , ").");
+        TxnDate = lastTxnDate + eps;
+        .index(TxnData)[1] = TxnDate
+      }    
     }
 
-    if(is.null(ConMult) | !hasArg(ConMult)){
-        tmp_instr<-try(getInstrument(Symbol), silent=TRUE)
-        if(inherits(tmp_instr,"try-error") | !is.instrument(tmp_instr)){
-            warning(paste("Instrument",Symbol," not found, using contract multiplier of 1"))
-            ConMult<-1
-        } else {
-            ConMult<-tmp_instr$multiplier
-        }  
-    }
+    # if(is.null(ConMult) | !hasArg(ConMult)){
+    #     tmp_instr<-try(getInstrument(Symbol), silent=TRUE)
+    #     if(inherits(tmp_instr,"try-error") | !is.instrument(tmp_instr)){
+    #         warning(paste("Instrument",Symbol," not found, using contract multiplier of 1"))
+    #         ConMult<-1
+    #     } else {
+    #         ConMult<-tmp_instr$multiplier
+    #     }  
+    # }
 
     # initialize new transaction object
-    NewTxns <- xts(matrix(NA_real_, nrow(TxnData), 10L), index(TxnData))
-    colnames(NewTxns) <- c('Txn.Id', 'Txn.Qty', 'Txn.Price', 'Txn.Value', 'Txn.Avg.Cost', 'Pos.Qty', 'Pos.Avg.Cost', 'Gross.Txn.Realized.PL', 'Txn.Fees', 'Net.Txn.Realized.PL', 'Con.Mult')
+    NewTxns <- xts(matrix(NA_real_, nrow(TxnData), 11L), index(TxnData))
+    colnames(NewTxns) <- c('Txn.Id', 'Txn.Qty', 'Txn.Price', 'Txn.Value', 'Txn.Price.Open',
+                           'Pos.Qty', 'Pos.Avg.Cost', 'Gross.Txn.Realized.PL',
+                           'Txn.Fees', 'Net.Txn.Realized.PL', 'Client.Id')
 
     # Warn if the transaction timestamp is not after initDate
     if(.index(NewTxns[1L,1L]) <= .index(Portfolio$symbols[[Symbol]]$txn[1L,1L]))
       warning("First transaction timestamp (", index(NewTxns[1L,1L]), ") ",
               "is not after initDate (", index(Portfolio$symbols[[Symbol]]$txn[1L,1L]), ").")
 
-	NewTxns$Txn.Id <- as.numeric(TxnData$TxnId)
-    if(!("TxnQty" %in% colnames(TxnData))) {
-	warning(paste("No TxnQty column found, what did you call it?"))
-    } else {
-      NewTxns$Txn.Qty <- as.numeric(TxnData$TxnQty)
-	}
-    if(!("TxnPrice" %in% colnames(TxnData))) {
-	warning(paste("No TxnPrice column found, what did you call it?"))
-    } else {
-      NewTxns$Txn.Price <- as.numeric(TxnData$TxnPrice)
-	}
-    if("TxnFees" %in% colnames(TxnData)) {
-      NewTxns$Txn.Fees <- as.numeric(TxnData$TxnFees)
-    } else {
-      NewTxns$Txn.Fees <- 0
-    }
+  	NewTxns$Txn.Id <- as.numeric(TxnData$TxnId)
+  	NewTxns$Txn.Price.Open <- as.numeric(TxnData$Txn.Price.Open)
+  	if (!("TxnQty" %in% colnames(TxnData))) {
+  	  warning(paste("No TxnQty column found, what did you call it?"))
+  	} else {
+  	  NewTxns$Txn.Qty <- as.numeric(TxnData$TxnQty)
+  	}
+  	if (!("TxnPrice" %in% colnames(TxnData))) {
+  	  warning(paste("No TxnPrice column found, what did you call it?"))
+  	} else {
+  	  NewTxns$Txn.Price <- as.numeric(TxnData$TxnPrice)
+  	}
+  	if ("TxnFees" %in% colnames(TxnData)) {
+  	  NewTxns$Txn.Fees <- as.numeric(TxnData$TxnFees)
+  	} else {
+  	  NewTxns$Txn.Fees <- 0
+  	}
+  	if ("ClientId" %in% colnames(TxnData)) {
+  	  NewTxns$Client.Id <- as.numeric(TxnData$ClientId)
+  	} else {
+  	  NewTxns$Client.Id <- 0
+  	}
   
     if(any(NewTxns$Txn.Fees > 0) && !isTRUE(allowRebates)){
       stop('Positive Transaction Fees should only be used in the case of broker/exchange rebates. See Documentation.')
@@ -280,8 +297,8 @@ addTxns<- function(Portfolio, Symbol, TxnData , verbose=FALSE, ..., ConMult=NULL
     }
     rm(Pos, PosCrossZero)  # clean up
     # calculate transaction values
-    NewTxns$Txn.Value <- .calcTxnValue(NewTxns$Txn.Qty, NewTxns$Txn.Price, 0, ConMult)  # Gross of fees
-    NewTxns$Txn.Avg.Cost <- .calcTxnAvgCost(NewTxns$Txn.Value, NewTxns$Txn.Qty, ConMult)
+    NewTxns$Txn.Value <- .calcTxnValue(NewTxns$Txn.Qty, NewTxns$Txn.Price, 0, 1)  # Gross of fees
+    #NewTxns$Txn.Avg.Cost <- .calcTxnAvgCost(NewTxns$Txn.Value, NewTxns$Txn.Qty, ConMult)
     # intermediate objects to aid in vectorization; only first element is non-zero
     initPosQty <- initPosAvgCost <- numeric(nrow(NewTxns))
     initPosQty[1] <- getPosQty(pname, Symbol, start(NewTxns))
@@ -289,14 +306,13 @@ addTxns<- function(Portfolio, Symbol, TxnData , verbose=FALSE, ..., ConMult=NULL
     # cumulative sum of transaction qty + initial position qty
     NewTxns$Pos.Qty <- cumsum(initPosQty + NewTxns$Txn.Qty)
     # only pass non-zero initial position qty and average cost
-    NewTxns$Pos.Avg.Cost <- .calcPosAvgCost_C(initPosQty[1], initPosAvgCost[1], NewTxns$Txn.Value, NewTxns$Pos.Qty, ConMult)
+    NewTxns$Pos.Avg.Cost <- .calcPosAvgCost_C(initPosQty[1], initPosAvgCost[1], NewTxns$Txn.Value, NewTxns$Pos.Qty, 1)
     # need lagged position average cost and quantity
     lagPosAvgCost <- c(initPosAvgCost[1], NewTxns$Pos.Avg.Cost[-nrow(NewTxns)])
     lagPosQty <- c(initPosQty[1], NewTxns$Pos.Qty[-nrow(NewTxns)])
-    NewTxns$Gross.Txn.Realized.PL <- NewTxns$Txn.Qty * ConMult * (lagPosAvgCost - NewTxns$Txn.Avg.Cost)
+    NewTxns$Gross.Txn.Realized.PL <- -1 * NewTxns$Txn.Qty * (NewTxns$Txn.Price - NewTxns$Txn.Price.Open)
     NewTxns$Gross.Txn.Realized.PL[abs(lagPosQty) < abs(NewTxns$Pos.Qty) | lagPosQty == 0] <- 0
     NewTxns$Net.Txn.Realized.PL <- NewTxns$Gross.Txn.Realized.PL + NewTxns$Txn.Fees
-    NewTxns$Con.Mult <- ConMult
 
     # update portfolio with new transactions
     Portfolio$symbols[[Symbol]]$txn <- rbind(Portfolio$symbols[[Symbol]]$txn, NewTxns) 
