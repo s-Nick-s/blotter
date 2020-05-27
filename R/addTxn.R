@@ -271,44 +271,39 @@ addTxns<- function(Portfolio, Symbol, TxnData, ..., verbose=FALSE, allowRebates=
     if(any(NewTxns$Txn.Fees > 0) && !isTRUE(allowRebates)){
       stop('Positive Transaction Fees should only be used in the case of broker/exchange rebates. See Documentation.')
     }
-  
+  	
+  	# intermediate objects to aid in vectorization; only first element is non-zero
+  	initPosQty <- initPosAvgCost <- numeric(nrow(NewTxns))
+  	initPosQty[1] <- getPosQty(pname, Symbol, start(NewTxns))
+  	initPosAvgCost[1] <- .getPosAvgCost(pname, Symbol, start(NewTxns))
+  	# cumulative sum of transaction qty + initial position qty
+  	NewTxns$Pos.Qty <- cumsum(initPosQty + NewTxns$Txn.Qty)
+  	
+  	# no other way - if PrevPosQty ~= -TxnQty (within Tolerance), assign TxnQty = -PrevPosQty
+  	PrevPosQty <- lag(NewTxns$Pos.Qty)
+  	PrevPosQty[1] <- initPosQty[1]
+  	my_comparator0 = abs(coredata(PrevPosQty)[,1] + coredata(NewTxns$Txn.Qty)[,1]) <= sqrt(.Machine$double.eps)
+  	NewTxns$Txn.Qty[my_comparator0] <- -PrevPosQty[my_comparator0]
+  	
     # split transactions that would cross through zero
-    Pos <- drop(cumsum(NewTxns$Txn.Qty))
-    Pos <- merge(Qty=Pos, PrevQty=lag(Pos))
-    PosCrossZero <- Pos$PrevQty!= 0 & sign(Pos$PrevQty+NewTxns$Txn.Qty) != sign(Pos$PrevQty) & Pos$PrevQty!= -NewTxns$Txn.Qty
-    PosCrossZero[1] <- FALSE
-    if(any(PosCrossZero)) {
-        # subset position object
-        Pos <- Pos[PosCrossZero,]
-        # subset transactions we need to split, and initialize objects we can alter
-        flatTxns <- initTxns <- NewTxns[PosCrossZero,]
-        # set quantity for flat and initiating transactions
-        flatTxns$Txn.Qty <- -Pos$PrevQty
-        initTxns$Txn.Qty <- initTxns$Txn.Qty + Pos$PrevQty
-        # calculate fees pro-rata by quantity
-        txnFeeQty <- NewTxns$Txn.Fees/abs(NewTxns$Txn.Qty)
-        flatTxns$Txn.Fees <- txnFeeQty * abs(flatTxns$Txn.Qty)
-        initTxns$Txn.Fees <- txnFeeQty * abs(initTxns$Txn.Qty)
-        # transactions need unique timestamps, so increment initiating transaction index
-        .index(initTxns) <- .index(initTxns) + 2*eps
-        # remove split transactions from NewTxns, add flat and initiating transactions
-        NewTxns <- rbind(NewTxns[!PosCrossZero,], flatTxns, initTxns)
-        rm(flatTxns, initTxns, txnFeeQty)  # clean up
+    PosCrossZero <- PrevPosQty != 0 & sign(PrevPosQty + NewTxns$Txn.Qty) != sign(PrevPosQty) & PrevPosQty != -NewTxns$Txn.Qty
+    if(any(PosCrossZero & my_comparator0)) {
+      errorVec <- PosCrossZero & my_comparator0
+      debug_msg = paste('addTxns: ',  Symbol, paste(as.numeric(NewTxns$Txn.Id[errorVec]), collapse = ', '), "|",
+                        paste(formatC(as.numeric(PrevPosQty[errorVec]),format="e",digits=12), collapse = ', '), "|",
+                        paste(formatC(as.numeric(NewTxns$Txn.Qty[errorVec]),format="e",digits=12), collapse = ', '))
+      logdebug(debug_msg)
+      stop("split addTxns transactions triggered!")
     }
-    rm(Pos, PosCrossZero)  # clean up
+    rm(PosCrossZero)  # clean up
     # calculate transaction values
     NewTxns$Txn.Value <- .calcTxnValue(NewTxns$Txn.Qty, NewTxns$Txn.Price, 0, 1)  # Gross of fees
     #NewTxns$Txn.Avg.Cost <- .calcTxnAvgCost(NewTxns$Txn.Value, NewTxns$Txn.Qty, ConMult)
-    # intermediate objects to aid in vectorization; only first element is non-zero
-    initPosQty <- initPosAvgCost <- numeric(nrow(NewTxns))
-    initPosQty[1] <- getPosQty(pname, Symbol, start(NewTxns))
-    initPosAvgCost[1] <- .getPosAvgCost(pname, Symbol, start(NewTxns))
-    # cumulative sum of transaction qty + initial position qty
-    NewTxns$Pos.Qty <- cumsum(initPosQty + NewTxns$Txn.Qty)
+    
     # only pass non-zero initial position qty and average cost
     NewTxns$Pos.Avg.Cost <- .calcPosAvgCost_C(initPosQty[1], initPosAvgCost[1], NewTxns$Txn.Value, NewTxns$Pos.Qty, 1)
     # need lagged position average cost and quantity
-    lagPosAvgCost <- c(initPosAvgCost[1], NewTxns$Pos.Avg.Cost[-nrow(NewTxns)])
+    #lagPosAvgCost <- c(initPosAvgCost[1], NewTxns$Pos.Avg.Cost[-nrow(NewTxns)])
     lagPosQty <- c(initPosQty[1], NewTxns$Pos.Qty[-nrow(NewTxns)])
     NewTxns$Gross.Txn.Realized.PL <- -1 * NewTxns$Txn.Qty * (NewTxns$Txn.Price - NewTxns$Txn.Price.Open)
     NewTxns$Gross.Txn.Realized.PL[abs(lagPosQty) < abs(NewTxns$Pos.Qty) | lagPosQty == 0] <- 0
