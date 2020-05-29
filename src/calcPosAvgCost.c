@@ -27,13 +27,13 @@ SEXP calcPosAvgCost (SEXP PrevPosQty, SEXP PrevPosAvgCost, SEXP TxnValue, SEXP P
     for(i = 0; i < n; i++) {
         if(d_PosQty[i] == 0.0) {
             d_PosAvgCost[i] = 0.0;
-        } else
-        if(abs(d_PrevPosQty) > abs(d_PosQty[i])){
+        } else 
+        //if(abs(d_PrevPosQty) > abs(d_PosQty[i])){
             /* position is decreasing, pos avg cost for the open position remains the same */
-            d_PosAvgCost[i] = d_PrevPosAvgCost;
-        } else {
+            //d_PosAvgCost[i] = d_PrevPosAvgCost;
+        //} else {
             d_PosAvgCost[i] = (d_PrevPosQty * d_PrevPosAvgCost * d_ConMult + d_TxnValue[i])/(d_PosQty[i]*d_ConMult);
-        }
+        //}
         d_PrevPosQty = d_PosQty[i];
         d_PrevPosAvgCost = d_PosAvgCost[i];
     }
