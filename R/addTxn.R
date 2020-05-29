@@ -200,7 +200,7 @@ pennyPerShare <- function(TxnQty, ...) {
 
 #' @rdname addTxn
 #' @export
-addTxns<- function(Portfolio, Symbol, TxnData, ..., verbose=FALSE, allowRebates=FALSE, eps=1e-06)
+addTxns<- function(Portfolio, Symbol, TxnDates, TxnId, TxnQty, TxnPrice, TxnPriceOpen, TxnFees, ClientId, ..., verbose=FALSE, allowRebates=FALSE, eps=1e-06)
 {
   
     pname <- Portfolio
@@ -209,7 +209,11 @@ addTxns<- function(Portfolio, Symbol, TxnData, ..., verbose=FALSE, allowRebates=
     #     addPortfInstr(Portfolio=pname, symbols=Symbol)
     Portfolio <- .getPortfolio(pname)
 
-    TxnDate <- start(TxnData)
+    if(!is.timeBased(TxnDates) ){
+      TxnDates<-as.POSIXct(TxnDates,origin=default.origin, tz=default.timeZone)
+    }
+    
+    TxnDate <- TxnDates[1]
     lastTxnDate <- end(Portfolio$symbols[[Symbol]]$txn)
     if (TxnDate < lastTxnDate) {
       stop("Transactions must be added in order. First TxnDate (", TxnDate, ") is ",
@@ -220,7 +224,7 @@ addTxns<- function(Portfolio, Symbol, TxnData, ..., verbose=FALSE, allowRebates=
         warning("Transaction timestamp (", TxnDate, ") ",
                 "equals last timestamp (", lastTxnDate , ").");
         TxnDate = lastTxnDate + eps;
-        .index(TxnData)[1] = TxnDate
+        TxnDates[1] = TxnDate
       }    
     }
 
@@ -235,7 +239,7 @@ addTxns<- function(Portfolio, Symbol, TxnData, ..., verbose=FALSE, allowRebates=
     # }
 
     # initialize new transaction object
-    NewTxns <- xts(matrix(NA_real_, nrow(TxnData), 11L), index(TxnData))
+    NewTxns <- xts(matrix(NA_real_, length(TxnDates), 11L), TxnDates)
     colnames(NewTxns) <- c('Txn.Id', 'Txn.Qty', 'Txn.Price', 'Txn.Value', 'Txn.Price.Open',
                            'Pos.Qty', 'Pos.Avg.Cost', 'Gross.Txn.Realized.PL',
                            'Txn.Fees', 'Net.Txn.Realized.PL', 'Client.Id')
@@ -245,28 +249,12 @@ addTxns<- function(Portfolio, Symbol, TxnData, ..., verbose=FALSE, allowRebates=
       warning("First transaction timestamp (", index(NewTxns[1L,1L]), ") ",
               "is not after initDate (", index(Portfolio$symbols[[Symbol]]$txn[1L,1L]), ").")
 
-  	NewTxns$Txn.Id <- as.numeric(TxnData$TxnId)
-  	NewTxns$Txn.Price.Open <- as.numeric(TxnData$Txn.Price.Open)
-  	if (!("TxnQty" %in% colnames(TxnData))) {
-  	  warning(paste("No TxnQty column found, what did you call it?"))
-  	} else {
-  	  NewTxns$Txn.Qty <- as.numeric(TxnData$TxnQty)
-  	}
-  	if (!("TxnPrice" %in% colnames(TxnData))) {
-  	  warning(paste("No TxnPrice column found, what did you call it?"))
-  	} else {
-  	  NewTxns$Txn.Price <- as.numeric(TxnData$TxnPrice)
-  	}
-  	if ("TxnFees" %in% colnames(TxnData)) {
-  	  NewTxns$Txn.Fees <- as.numeric(TxnData$TxnFees)
-  	} else {
-  	  NewTxns$Txn.Fees <- 0
-  	}
-  	if ("ClientId" %in% colnames(TxnData)) {
-  	  NewTxns$Client.Id <- as.numeric(TxnData$ClientId)
-  	} else {
-  	  NewTxns$Client.Id <- 0
-  	}
+  	NewTxns$Txn.Id <- as.numeric(TxnId)
+  	NewTxns$Txn.Price.Open <- as.numeric(TxnPriceOpen)
+  	NewTxns$Txn.Qty <- as.numeric(TxnQty)
+  	NewTxns$Txn.Price <- as.numeric(TxnPrice)
+  	NewTxns$Txn.Fees <- as.numeric(TxnFees)
+  	NewTxns$Client.Id <- as.numeric(ClientId)
   
     if(any(NewTxns$Txn.Fees > 0) && !isTRUE(allowRebates)){
       stop('Positive Transaction Fees should only be used in the case of broker/exchange rebates. See Documentation.')
