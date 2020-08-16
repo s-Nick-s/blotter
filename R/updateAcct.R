@@ -37,7 +37,14 @@ updateAcct <- function(name='default', Dates=NULL, swapTime = NULL, swapUTC = '2
         if(!is.null(attr(Portfolio,'currency'))) {
             p.ccy.str<-attr(Portfolio,'currency')
         } 
-        
+
+      #trim to only time prior to Dates
+      whichi = NROW(Account$portfolios[[pname]])
+     if(last(index(Account$portfolios[[pname]]))>.parseISO8601(Dates)$first.time){
+        whichi<-first(Account$portfolios[[pname]][paste(.parseISO8601(Dates)$first.time,'::',sep=''), which.i = TRUE])
+        if(!is.null(whichi)) whichi=whichi-1
+        if(whichi<1) whichi=1 
+      }        
         # Test whether portfolio and account are of the same ccy        
         psummary = Portfolio$summary[Dates]
         if( a.ccy.str != p.ccy.str ){

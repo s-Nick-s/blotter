@@ -73,7 +73,7 @@
     if(ncol(prices)>1) prices=getPrice(Prices,Symbol) #  THIS DOESNT APPLY - WE'VE SELECT ONLY 1 COLUMN in line 32
     
 	# line up Prices dates with Dates set/index/span passed in.
-	startDate = first(Dates) # 20191007 - this has 0 offset in my code. In standard code offset is 0.00001 - WHY ?
+	startDate = first(Dates) - 0.00001 # 20200814 - return offset # 20191007 - this has 0 offset in my code. In standard code offset is 0.00001 - WHY ?
 	#does this need to be a smaller/larger delta for millisecond data?
 	endDate   = last(Dates) + .001
 	
@@ -105,7 +105,12 @@
 		colnames(priorPL)<-cn
 	}
 	
-	Txns <- Portfolio$symbols[[Symbol]]$txn[dateRange]
+	Txns <- Portfolio$symbols[[Symbol]]$txn
+	if(nrow(Txns)>0){ 
+		# right now we don't know how to handle non-trivial dateRange
+		if(!is.null(dargs$first_time)) {first_time<-dargs$first_time} else first_time=index(Txns)[Txns$Txn.Id != 0][1]
+	}
+	Txns<-Txns[dateRange]
 	#subset Prices by dateRange too...
 	Prices<-prices[dateRange]
 	
@@ -121,7 +126,7 @@
 				colnames(Txns)<-cn;
 			}
 		} 
-	  if(!is.null(dargs$first_time)) {first_time<-dargs$first_time} else first_time=index(Txns)[Txns$Txn.Id != 0][1]
+	  
 			
 		if(nrow(Prices)<1) {
 			# special provision for the case when endDate isn't available 
@@ -155,7 +160,7 @@
 		
 		if(is.na(tmpPL[1,'Prices'])){
 			#first price is NA, it would be nice to fill it in with a previous last valid price
-			fprice <- xts::last( window(prices, end = startDate))
+			fprice <- xts::last( window(prices, end = startDate-0.0001))
 			if (length(fprice)==1) tmpPL[1,'Prices'] <- fprice 
 					# if there's no previous valid price, calculate it from the prior position value
 					# (can occur if .updatePosPL is called repeatedly with only one date/price)
@@ -210,12 +215,13 @@
 				warning(paste("Instrument",Symbol," not found, things may break"))
 				tmp_instr<-list(currency="USD",multiplier=1)
 			}			
-			Portfolio$symbols[[Symbol]][[paste('posPL',p.ccy.str,sep='.')]]<-window(Portfolio$symbols[[Symbol]][[paste('posPL',p.ccy.str,sep='.')]], end= startDate); # USD-denominated PnLs aren't updated or used for virtual portfolios
+			#Portfolio$symbols[[Symbol]][[paste('posPL',p.ccy.str,sep='.')]]<-window(Portfolio$symbols[[Symbol]][[paste('posPL',p.ccy.str,sep='.')]], end= startDate); # USD-denominated PnLs aren't updated or used for virtual portfolios
 		
 			# now do the currency conversions for the whole date range
-			TmpPeriods<-tmpPL#Portfolio$symbols[[Symbol]]$posPL[dateRange]
+			TmpPeriods<-Portfolio$symbols[[Symbol]]$posPL
 			
-			CcyMult <- .getCCyMult(Portfolio, tmp_instr, p.ccy.str, index(TmpPeriods), dateRange, prefer, ...)
+			dateRangeAll = index(TmpPeriods)
+			CcyMult <- .getCCyMult(Portfolio, tmp_instr, p.ccy.str, index(TmpPeriods), dateRangeAll, prefer, ...)
 			
 			if (length(CcyMult)==1 && CcyMult==1){
 			  Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]] <- Portfolio[['symbols']][[Symbol]][['posPL']]
@@ -253,7 +259,7 @@
 			  # TmpPeriods[,columns] <- TmpPeriods[,columns] + drop(CcyMove)  # drop dims so recycling will occur
 			  
 			  #stick it in posPL.ccy
-			  Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]]<-rbind(Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]], TmpPeriods[, colOrder])
+			  Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]]<-TmpPeriods[, colOrder]
 			}
 		}
   }
