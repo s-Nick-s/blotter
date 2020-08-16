@@ -110,6 +110,8 @@
 		# right now we don't know how to handle non-trivial dateRange
 		if(!is.null(dargs$first_time)) {first_time<-dargs$first_time} else first_time=index(Txns)[Txns$Txn.Id != 0][1]
 	}
+	else 
+		first_time = startDate
 	Txns<-Txns[dateRange]
 	#subset Prices by dateRange too...
 	Prices<-prices[dateRange]
@@ -203,10 +205,10 @@
 		
 		# reorder,discard  columns for insert into portfolio object
 		tmpPL <- tmpPL[,c('Pos.Qty', 'Client.Id', 'Ccy.Mult', 'Pos.Value', 'Pos.Avg.Cost', 'Txn.Value',  'Period.Realized.PL', 'Period.Unrealized.PL','Gross.Trading.PL', 'Txn.Fees', 'Net.Trading.PL')]
-
+                        if(nrow(Txns)>0) 
+			first_cumsum = sum(na.fill(window(Portfolio[['symbols']][[Symbol]][['posPL']][,'Period.Unrealized.PL'], start=first_time,end=endDate),fill=0))			
 		# rbind to $posPL slot
-		tmpPL <- tmpPL[dateRange] #subset to get rid of any prior period Txn or PosPL rows we inserted
-		Portfolio[['symbols']][[Symbol]][['posPL']]<-rbind(Portfolio[['symbols']][[Symbol]][['posPL']],tmpPL)
+		Portfolio[['symbols']][[Symbol]][['posPL']]<-rbind(Portfolio[['symbols']][[Symbol]][['posPL']],tmpPL[dateRange])#subset to get rid of any prior period Txn or PosPL rows we inserted
 		
 		if(!virtual)
 		{
@@ -215,12 +217,12 @@
 				warning(paste("Instrument",Symbol," not found, things may break"))
 				tmp_instr<-list(currency="USD",multiplier=1)
 			}			
-			#Portfolio$symbols[[Symbol]][[paste('posPL',p.ccy.str,sep='.')]]<-window(Portfolio$symbols[[Symbol]][[paste('posPL',p.ccy.str,sep='.')]], end= startDate); # USD-denominated PnLs aren't updated or used for virtual portfolios
+			#Portfolio$symbols[[Symbol]][[paste('posPL',p.ccy.str,sep='.')]]<-; # USD-denominated PnLs aren't updated or used for virtual portfolios
 		
 			# now do the currency conversions for the whole date range
-			TmpPeriods<-Portfolio$symbols[[Symbol]]$posPL
+			TmpPeriods<- tmpPL #Portfolio$symbols[[Symbol]]$posPL
 			
-			dateRangeAll = index(TmpPeriods)
+			dateRangeAll  = paste(first_time,endDate,sep='::')   #### WAS: index(TmpPeriods)  
 			CcyMult <- .getCCyMult(Portfolio, tmp_instr, p.ccy.str, index(TmpPeriods), dateRangeAll, prefer, ...)
 			
 			if (length(CcyMult)==1 && CcyMult==1){
@@ -233,10 +235,11 @@
 			  colOrder <- colnames(TmpPeriods)
 			  
 			  if(any(Txns$Txn.Id != 0) && !is.na(first_time)) {
-			  
+			    
 			    TmpPeriods$Period.Realized.PL <- TmpPeriods$Period.Realized.PL * drop(CcyMult)
 			    TmpPeriods$helperSeries <- 0
 			    indexVec <- index(TmpPeriods) >= first_time
+			    if(first_time <endDate)  TmpPeriods$Period.Unrealized.PL[1]<-first_cumsum 
 			    TmpPeriods$helperSeries[indexVec] <- cumsum(TmpPeriods$Period.Unrealized.PL[indexVec]) * drop(CcyMult)
 			    TmpPeriods$Period.Unrealized.PL <- TmpPeriods$helperSeries - lag(TmpPeriods$helperSeries)
 			    TmpPeriods$Period.Unrealized.PL[is.na(TmpPeriods$Period.Unrealized.PL)] <- 0
@@ -259,7 +262,7 @@
 			  # TmpPeriods[,columns] <- TmpPeriods[,columns] + drop(CcyMove)  # drop dims so recycling will occur
 			  
 			  #stick it in posPL.ccy
-			  Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]]<-TmpPeriods[, colOrder]
+			  Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]]<-rbind(window(Portfolio$symbols[[Symbol]][[paste('posPL',p.ccy.str,sep='.')]], end= startDate), TmpPeriods[dateRange][, colOrder])
 			}
 		}
   }
@@ -319,7 +322,7 @@
       }
       
       CcyMult <- na.locf(merge(CcyMult, targetIdx))
-      CcyMult <- na.locf(CcyMult, fromLast = T)
+      CcyMult <- na.locf(na.locf(CcyMult), fromLast = T) # Nikolai - first we "forward-fill" na data. ONLY if that steps leaves any NAs, we back-fill them. GENERALLY WE ONLY FORWARD FILL PRICES
       CcyMult <- CcyMult[targetIdx]
       
     } else {
