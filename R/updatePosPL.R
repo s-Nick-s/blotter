@@ -223,7 +223,7 @@
 			TmpPeriods<- tmpPL #Portfolio$symbols[[Symbol]]$posPL
 			
 			dateRangeAll  = paste(first_time,endDate,sep='::')   #### WAS: index(TmpPeriods)  
-			CcyMult <- .getCCyMult(Portfolio, tmp_instr, p.ccy.str, index(TmpPeriods), dateRangeAll, prefer, ...)
+			CcyMult <- .getCCyMult(Portfolio, tmp_instr, p.ccy.str, index(TmpPeriods), dateRangeAll, prefer, endDate = endDate, ...)
 			
 			if (length(CcyMult)==1 && CcyMult==1){
 			  Portfolio[['symbols']][[Symbol]][[paste('posPL',p.ccy.str,sep='.')]] <- Portfolio[['symbols']][[Symbol]][['posPL']]
@@ -270,7 +270,7 @@
   #assign( paste("portfolio",pname,sep='.'), Portfolio, envir=.blotter )
 }
 
-.getCCyMult <- function(Portfolio, tmp_instr, p.ccy.str, targetIdx, dateRange, prefer, ...) {
+.getCCyMult <- function(Portfolio, tmp_instr, p.ccy.str, targetIdx, dateRange, prefer, endDate, ...) {
   CcyMult = NA 
   FXrate = NA
   invert=FALSE
